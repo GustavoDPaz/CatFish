@@ -26,6 +26,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/vite.config.ts ./vite.config.ts
 
 # Expose default port 5173
 EXPOSE 5173
@@ -35,4 +36,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD wget -q -O /dev/null http://localhost:5173/ || exit 1
 
 # Start Vite production preview server bound to 0.0.0.0 (accessible via LAN/Tunnel)
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173", "--config", "./vite.config.ts"]
