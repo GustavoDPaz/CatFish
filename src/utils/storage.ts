@@ -54,12 +54,7 @@ export const DEFAULT_PROFILE: UserProfile = {
 };
 
 export const DEFAULT_BUDGETS: BudgetLimit[] = [
-  { category: 'Moradia', limit: 2500, icon: 'Home' },
   { category: 'Alimentação', limit: 1200, icon: 'Utensils' },
-  { category: 'Educação & Cursos', limit: 600, icon: 'Zap' },
-  { category: 'Transporte', limit: 500, icon: 'Compass' },
-  { category: 'Lazer', limit: 800, icon: 'Gamepad2' },
-  { category: 'Saúde', limit: 400, icon: 'HeartPulse' },
 ];
 
 export const DEFAULT_TRANSACTIONS: Transaction[] = [
@@ -159,56 +154,7 @@ export const DEFAULT_DEBTS: Debt[] = [
   },
 ];
 
-export const DEFAULT_CARDS: FinancialGoal[] = [
-  {
-    id: 'goal-1',
-    cardNo: '001',
-    name: 'Quitação Total de Dívidas',
-    rank: 'Alta',
-    description: 'Elimine qualquer pendência financeira ou compra parcelada ativa.',
-    objective: 'Quitar 100% de faturas ou empréstimos ativos.',
-    unlocked: true,
-    rewardText: 'Tranquilidade e proteção do fluxo mensal',
-    targetAmount: 2000,
-    currentAmount: 2000,
-  },
-  {
-    id: 'goal-2',
-    cardNo: '002',
-    name: 'Reserva de Emergência (Meta R$ 5.000)',
-    rank: 'Alta',
-    description: 'Construa uma base sólida para cobrir imprevistos sem recorrer a crédito.',
-    objective: 'Acumular mais de R$ 5.000 na reserva de emergência.',
-    unlocked: false,
-    rewardText: 'Estabilidade e segurança patrimonial',
-    targetAmount: 5000,
-    currentAmount: 1500,
-  },
-  {
-    id: 'goal-3',
-    cardNo: '003',
-    name: 'Mês no Azul (Balanço Positivo)',
-    rank: 'Média',
-    description: 'Mantenha o controle mensal fechando com receita superior às despesas.',
-    objective: 'Terminar o mês com saldo positivo de pelo menos R$ 2.000.',
-    unlocked: true,
-    rewardText: 'Consistência no planejamento orçamentário',
-    targetAmount: 2000,
-    currentAmount: 2000,
-  },
-  {
-    id: 'goal-4',
-    cardNo: '004',
-    name: 'Orçamento Sob Controle',
-    rank: 'Normal',
-    description: 'Acompanhe todas as despesas categorizadas no mês.',
-    objective: 'Cadastrar mais de 5 lançamentos categorizados.',
-    unlocked: true,
-    rewardText: 'Visão clara dos hábitos de consumo',
-    targetAmount: 5,
-    currentAmount: 6,
-  },
-];
+export const DEFAULT_CARDS: FinancialGoal[] = [];
 
 const sanitizeAccountName = (acc: string): string => {
   if (acc.includes('Conta Corrente Principal')) return 'Conta Corrente';
@@ -298,7 +244,7 @@ export const storage = {
     storage.saveTransactions([]);
     storage.saveDebts([]);
     storage.saveBudgets(DEFAULT_BUDGETS);
-    storage.saveCards(DEFAULT_CARDS);
+    storage.saveCards([]);
 
     return { success: true, user: newUser };
   },
@@ -437,14 +383,24 @@ export const storage = {
 
   getBudgets: (): BudgetLimit[] => {
     try {
+      const activeUser = storage.getActiveUser();
       const key = getUserStorageKey(STORAGE_KEYS.BUDGETS);
       const data = localStorage.getItem(key);
       if (!data) {
-        const legacy = localStorage.getItem(STORAGE_KEYS.BUDGETS);
-        if (legacy) return JSON.parse(legacy);
+        if (!activeUser || activeUser.id === 'usr-felipe-default') {
+          const legacy = localStorage.getItem(STORAGE_KEYS.BUDGETS);
+          if (legacy) return JSON.parse(legacy);
+          return DEFAULT_BUDGETS;
+        }
         return DEFAULT_BUDGETS;
       }
-      return JSON.parse(data);
+      const list: BudgetLimit[] = JSON.parse(data);
+      // Auto-migrate legacy 6 default categories to single 1 example if user has old default set
+      if (list.length === 6 && list.some(b => b.category === 'Moradia' && b.limit === 2500) && list.some(b => b.category === 'Saúde' && b.limit === 400)) {
+        storage.saveBudgets(DEFAULT_BUDGETS);
+        return DEFAULT_BUDGETS;
+      }
+      return list;
     } catch {
       return DEFAULT_BUDGETS;
     }
@@ -461,15 +417,20 @@ export const storage = {
       if (!data) {
         const legacy = localStorage.getItem(STORAGE_KEYS.CARDS);
         if (legacy) return JSON.parse(legacy);
-        return DEFAULT_CARDS;
+        return [];
       }
       const list: FinancialGoal[] = JSON.parse(data);
+      // Auto-clean legacy default goals if user was initialized with the 4 default mock goals
+      if (list.length === 4 && list.some(c => c.id === 'goal-1' && c.cardNo === '001') && list.some(c => c.id === 'goal-4' && c.cardNo === '004')) {
+        storage.saveCards([]);
+        return [];
+      }
       return list.map((c) => ({
         ...c,
         imageUrl: c.imageUrl && !c.imageUrl.includes('potclean') ? c.imageUrl : undefined,
       }));
     } catch {
-      return DEFAULT_CARDS;
+      return [];
     }
   },
   saveCards: (c: FinancialGoal[]) => {
