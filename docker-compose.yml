@@ -27,10 +27,11 @@ services:
       - catfish_pgdata:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U catfish_user -d catfish_db"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -U catfish_user -d catfish_db"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
 volumes:
   catfish_pgdata:
