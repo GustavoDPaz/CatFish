@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import type { BankConnection } from '../types';
 import { api } from '../services/api';
-import { Landmark, Plus, CheckCircle2, AlertCircle, X, ShieldCheck, RefreshCw, Trash2, ExternalLink } from 'lucide-react';
+import { Landmark, Plus, CheckCircle2, AlertCircle, X, ShieldCheck, RefreshCw, Trash2, ExternalLink, FileSpreadsheet } from 'lucide-react';
 
 interface OpenFinanceModalProps {
   isOpen: boolean;
   onClose: () => void;
   connections: BankConnection[];
   onRefreshConnections: () => void;
+  onOpenOfxModal?: () => void;
 }
 
 export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
@@ -15,6 +16,7 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
   onClose,
   connections,
   onRefreshConnections,
+  onOpenOfxModal,
 }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -36,14 +38,35 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
 
     try {
       // 1. Get connect token from backend
-      const connectToken = await api.getConnectToken();
+      const tokenResult = await api.getConnectToken();
 
-      // 2. Check if Pluggy Connect SDK is loaded in window
-      const PluggyConnectClass = (window as any).PluggyConnect;
+      if (!tokenResult.connectToken) {
+        setShowCustomBankInput(true);
+        setFeedbackMsg({
+          type: 'error',
+          text: tokenResult.error || 'Credenciais da Pluggy não configuradas no server/.env. Para abrir o catálogo oficial, adicione seu PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET. Você também pode conectar qualquer banco livremente pelo formulário abaixo!',
+        });
+        setIsConnecting(false);
+        return;
+      }
+
+      // 2. Ensure Pluggy Connect SDK is loaded in window
+      let PluggyConnectClass = (window as any).PluggyConnect;
+      if (typeof PluggyConnectClass !== 'function') {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.pluggy.ai/pluggy-connect/v2.5.0/pluggy-connect.js';
+          script.async = true;
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Falha ao carregar script do Pluggy Connect via CDN.'));
+          document.head.appendChild(script);
+        });
+        PluggyConnectClass = (window as any).PluggyConnect;
+      }
 
       if (typeof PluggyConnectClass === 'function') {
         const pluggyConnect = new PluggyConnectClass({
-          connectToken,
+          connectToken: tokenResult.connectToken,
           includeSandbox: true,
           onSuccess: async (data: any) => {
             try {
@@ -71,11 +94,10 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
 
         pluggyConnect.init();
       } else {
-        // Fallback: If CDN script is still loading or blocked, show direct bank addition
         setShowCustomBankInput(true);
         setFeedbackMsg({
-          type: 'info',
-          text: 'SDK da Pluggy inicializando. Você também pode digitar o nome de qualquer instituição financeira abaixo para registrar.',
+          type: 'error',
+          text: 'Não foi possível inicializar o widget da Pluggy. Você pode conectar qualquer banco pelo formulário abaixo.',
         });
       }
     } catch (err) {
@@ -308,6 +330,21 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
               <Plus size={16} />
               <span>{showCustomBankInput ? 'Ocultar Adição Direta' : 'Adicionar Banco Livre'}</span>
             </button>
+
+            {onOpenOfxModal && (
+              <button
+                type="button"
+                className="cf-of-secondary-btn"
+                onClick={() => {
+                  onClose();
+                  onOpenOfxModal();
+                }}
+                title="Importar extrato .ofx do seu banco"
+              >
+                <FileSpreadsheet size={16} />
+                <span>Importar Extrato OFX</span>
+              </button>
+            )}
           </div>
 
           {/* Optional Direct Bank Name Input (Freedom to add any bank) */}

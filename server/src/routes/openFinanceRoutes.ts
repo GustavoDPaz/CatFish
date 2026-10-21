@@ -18,8 +18,11 @@ export async function openFinanceRoutes(app: FastifyInstance) {
   // 1. Generate Connect Token for Widget
   app.get('/connect-token', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = getUserId(req);
-    const token = await OpenFinanceService.getConnectToken(userId);
-    return reply.send(token);
+    const result = await OpenFinanceService.getConnectToken(userId);
+    if (result.error) {
+      return reply.status(400).send({ error: result.error });
+    }
+    return reply.send({ connectToken: result.connectToken });
   });
 
   // 2. Save new connection from Widget itemId
@@ -101,5 +104,36 @@ export async function openFinanceRoutes(app: FastifyInstance) {
     const userId = getUserId(req);
     const cards = await OpenFinanceService.getCreditCardsSummary(userId);
     return reply.send(cards);
+  });
+
+  // 7. Direct OFX Transactions & Account Import
+  app.post('/import-ofx', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = getUserId(req);
+    const body = req.body as {
+      accountName: string;
+      transactions: Array<{
+        id?: string;
+        externalProviderId?: string;
+        description: string;
+        amount: number;
+        type: string;
+        category?: string;
+        date: string;
+      }>;
+      newBalance?: number;
+    };
+
+    if (!body?.accountName || !Array.isArray(body?.transactions)) {
+      return reply.status(400).send({ error: 'Nome da conta e lista de transações são obrigatórios.' });
+    }
+
+    const result = await OpenFinanceService.importOfxData(
+      userId,
+      body.accountName,
+      body.transactions,
+      body.newBalance
+    );
+
+    return reply.status(201).send(result);
   });
 }

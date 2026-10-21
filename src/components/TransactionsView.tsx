@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import type { Transaction, TransactionType } from '../types';
 import { audioManager } from '../utils/audio';
-import { Plus, Search, Trash2, ArrowUpRight, ArrowDownRight, Lock, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Trash2, ArrowUpRight, ArrowDownRight, Lock, X, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
 
 interface TransactionsViewProps {
   transactions: Transaction[];
   onAddTransaction: (tx: Omit<Transaction, 'id'>) => void;
   onDeleteTransaction: (id: string) => void;
+  onOpenOfxModal?: () => void;
 }
 
 export const TransactionsView: React.FC<TransactionsViewProps> = ({
   transactions,
   onAddTransaction,
   onDeleteTransaction,
+  onOpenOfxModal,
 }) => {
   const [filterType, setFilterType] = useState<'all' | TransactionType>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,7 +25,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [type, setType] = useState<TransactionType>('ko');
+  const [type, setType] = useState<TransactionType>('despesa');
   const [category, setCategory] = useState('Alimentação');
   const [account, setAccount] = useState('Conta Corrente');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -34,7 +36,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   };
 
   const filtered = transactions.filter((tx) => {
-    const matchesType = filterType === 'all' || tx.type === filterType;
+    let matchesType = filterType === 'all';
+    if (!matchesType) {
+      if (filterType === 'ren' || filterType === 'receita') {
+        matchesType = tx.type === 'ren' || tx.type === 'receita';
+      } else if (filterType === 'ko' || filterType === 'despesa') {
+        matchesType = tx.type === 'ko' || tx.type === 'despesa';
+      } else if (filterType === 'ten' || filterType === 'reserva') {
+        matchesType = tx.type === 'ten' || tx.type === 'reserva';
+      } else {
+        matchesType = (tx.type as string) === (filterType as string);
+      }
+    }
     const matchesSearch = tx.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           tx.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           tx.account.toLowerCase().includes(searchQuery.toLowerCase());
@@ -84,11 +97,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   };
 
   const totalRen = transactions
-    .filter((t) => t.type === 'ren')
+    .filter((t) => t.type === 'ren' || t.type === 'receita')
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalKo = transactions
-    .filter((t) => t.type === 'ko')
+    .filter((t) => t.type === 'ko' || t.type === 'despesa')
     .reduce((sum, t) => sum + t.amount, 0);
 
   const netTotal = totalRen - totalKo;
@@ -189,6 +202,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               />
             </div>
 
+            {onOpenOfxModal && (
+              <button
+                className="cf-btn-secondary"
+                onClick={onOpenOfxModal}
+                title="Importar extrato bancário em formato .OFX"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 0.95rem' }}
+              >
+                <FileSpreadsheet size={15} />
+                <span>Importar OFX</span>
+              </button>
+            )}
+
             <button className="cf-btn-primary-blue" onClick={() => setShowAddModal(true)}>
               <Plus size={15} />
               <span>Novo lançamento</span>
@@ -204,34 +229,39 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             </div>
         ) : (
           <div className="clean-tx-list">
-            {paginatedTransactions.map((tx) => (
-              <div key={tx.id} className="clean-tx-row">
-                <div className="tx-col-left">
-                  <div className={`tx-type-tag ${tx.type}`}>
-                    {tx.type === 'ren' && <ArrowUpRight size={16} />}
-                    {tx.type === 'ko' && <ArrowDownRight size={16} />}
-                    {tx.type === 'ten' && <Lock size={15} />}
-                  </div>
-                  <div className="tx-desc-col">
-                    <span className="tx-title-main">{tx.description}</span>
-                    <div className="tx-sub-meta">
-                      <span className={`badge badge-${tx.type}`} style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem' }}>
-                        {tx.type === 'ren' ? 'Receita' : tx.type === 'ko' ? 'Despesa' : 'Reserva'}
-                      </span>
-                      <span>{tx.category}</span>
-                      <span>•</span>
-                      <span>{tx.account}</span>
-                      <span>•</span>
-                      <span>{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+            {paginatedTransactions.map((tx) => {
+              const isIncome = tx.type === 'ren' || tx.type === 'receita';
+              const isExpense = tx.type === 'ko' || tx.type === 'despesa';
+              const isReserve = tx.type === 'ten' || tx.type === 'reserva';
+
+              return (
+                <div key={tx.id} className="clean-tx-row">
+                  <div className="tx-col-left">
+                    <div className={`tx-type-tag ${isIncome ? 'ren' : isExpense ? 'ko' : 'ten'}`}>
+                      {isIncome && <ArrowUpRight size={16} />}
+                      {isExpense && <ArrowDownRight size={16} />}
+                      {isReserve && <Lock size={15} />}
+                    </div>
+                    <div className="tx-desc-col">
+                      <span className="tx-title-main">{tx.description}</span>
+                      <div className="tx-sub-meta">
+                        <span className={`badge badge-${isIncome ? 'ren' : isExpense ? 'ko' : 'ten'}`} style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem' }}>
+                          {isIncome ? 'Receita' : isExpense ? 'Despesa' : 'Reserva'}
+                        </span>
+                        <span>{tx.category}</span>
+                        <span>•</span>
+                        <span>{tx.account}</span>
+                        <span>•</span>
+                        <span>{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="tx-col-right">
-                  <span className={`tx-val-mono mono-number ${tx.type}`}>
-                    {tx.type === 'ren' ? '+' : tx.type === 'ko' ? '-' : ''}
-                    {formatCurrency(tx.amount)}
-                  </span>
+                  <div className="tx-col-right">
+                    <span className={`tx-val-mono mono-number ${isIncome ? 'ren' : isExpense ? 'ko' : 'ten'}`}>
+                      {isIncome ? '+' : isExpense ? '-' : ''}
+                      {formatCurrency(tx.amount)}
+                    </span>
                   <button
                     className="tx-delete-btn"
                     onClick={() => setTxToDelete(tx)}
@@ -241,7 +271,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   </button>
                 </div>
               </div>
-            ))}
+            );
+          })}
 
             {/* Pagination Controls */}
             {totalPages > 1 && (

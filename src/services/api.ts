@@ -35,15 +35,17 @@ export const api = {
   /**
    * Get connect token for Open Finance widget
    */
-  async getConnectToken(): Promise<string> {
+  async getConnectToken(): Promise<{ connectToken?: string; error?: string }> {
     try {
       const res = await fetch(`${API_BASE}/open-finance/connect-token`, { credentials: 'omit' });
-      if (res.ok) {
-        const data = await res.json();
-        return data.connectToken;
+      const data = await res.json();
+      if (res.ok && data.connectToken) {
+        return { connectToken: data.connectToken };
       }
-    } catch {}
-    return 'sandbox_token_' + Date.now();
+      return { error: data.error || data.message || 'Token não gerado pela Pluggy.' };
+    } catch {
+      return { error: 'Não foi possível conectar ao servidor do CatFish.' };
+    }
   },
 
   /**
@@ -152,6 +154,22 @@ export const api = {
       }
     } catch {}
     return localFallbackState.cards;
+  },
+
+  /**
+   * Send imported OFX transactions to server if available
+   */
+  async importOfxTransactions(accountName: string, transactions: any[], newBalance?: number): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/open-finance/import-ofx`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountName, transactions, newBalance }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   },
 
   /**

@@ -22,7 +22,8 @@ services:
     ports:
       - "3001:3001"
     env_file:
-      - ./server/.env
+      - path: ./server/.env
+        required: false
     environment:
       - NODE_ENV=production
       - PORT=3001

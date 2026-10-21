@@ -12,6 +12,7 @@ import { AuthView } from './components/AuthView';
 import { BalanceBreakdownPopover } from './components/BalanceBreakdownPopover';
 import { AiAssistantDrawer } from './components/AiAssistantDrawer';
 import { OpenFinanceModal } from './components/OpenFinanceModal';
+import { OfxImportModal } from './components/OfxImportModal';
 import { storage } from './utils/storage';
 import { audioManager } from './utils/audio';
 import { api } from './services/api';
@@ -83,6 +84,7 @@ export const App: React.FC = () => {
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
   const [isBalancePopoverOpen, setIsBalancePopoverOpen] = useState(false);
   const [isOpenFinanceModalOpen, setIsOpenFinanceModalOpen] = useState(false);
+  const [isOfxModalOpen, setIsOfxModalOpen] = useState(false);
   const [isSyncingOpenFinance, setIsSyncingOpenFinance] = useState(false);
 
   const [consolidatedBalances, setConsolidatedBalances] = useState<ConsolidatedBalances>({
@@ -208,6 +210,34 @@ export const App: React.FC = () => {
 
   const handleDeleteTransaction = (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const handleImportOfx = (
+    accountName: string,
+    importedTxs: Omit<Transaction, 'id'>[],
+    newBalance?: number
+  ) => {
+    const createdTxs: Transaction[] = importedTxs.map((t, idx) => ({
+      ...t,
+      id: `tx-ofx-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+    }));
+
+    setTransactions((prev) => [...createdTxs, ...prev]);
+
+    if (newBalance !== undefined) {
+      setProfile((prev) => {
+        const updated = {
+          ...prev,
+          bankName: accountName,
+          bankBalance: newBalance,
+        };
+        storage.saveProfile(updated);
+        return updated;
+      });
+    }
+
+    audioManager.playSuccessChime();
+    api.importOfxTransactions(accountName, createdTxs, newBalance).catch(() => {});
   };
 
   const handleQuickTxSubmit = (e: React.FormEvent) => {
@@ -456,6 +486,7 @@ export const App: React.FC = () => {
             transactions={transactions}
             onAddTransaction={handleAddTransaction}
             onDeleteTransaction={handleDeleteTransaction}
+            onOpenOfxModal={() => setIsOfxModalOpen(true)}
           />
         )}
 
@@ -679,6 +710,15 @@ export const App: React.FC = () => {
         onClose={() => setIsOpenFinanceModalOpen(false)}
         connections={bankConnections}
         onRefreshConnections={loadOpenFinanceData}
+        onOpenOfxModal={() => setIsOfxModalOpen(true)}
+      />
+
+      {/* Modal de Importação de Extrato Bancário OFX */}
+      <OfxImportModal
+        isOpen={isOfxModalOpen}
+        onClose={() => setIsOfxModalOpen(false)}
+        existingTransactions={transactions}
+        onImport={handleImportOfx}
       />
     </div>
   );

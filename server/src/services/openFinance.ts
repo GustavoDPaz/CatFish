@@ -52,10 +52,17 @@ export class OpenFinanceService {
   /**
    * Generates a temporary connect token from Pluggy API or sandbox
    */
-  static async getConnectToken(userId: string): Promise<{ connectToken: string }> {
-    if (env.PLUGGY_CLIENT_ID && env.PLUGGY_CLIENT_SECRET) {
+  static async getConnectToken(userId: string): Promise<{ connectToken?: string; error?: string }> {
+    const hasCredentials = Boolean(
+      env.PLUGGY_CLIENT_ID && 
+      env.PLUGGY_CLIENT_SECRET && 
+      !env.PLUGGY_CLIENT_ID.includes('your_pluggy') &&
+      !env.PLUGGY_CLIENT_SECRET.includes('your_pluggy')
+    );
+
+    if (hasCredentials) {
       try {
-        // Authenticate with Pluggy API
+        console.log('[OpenFinance] Autenticando com a API da Pluggy...');
         const authRes = await fetch(`${env.PLUGGY_BASE_URL}/auth`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -64,9 +71,15 @@ export class OpenFinanceService {
             clientSecret: env.PLUGGY_CLIENT_SECRET,
           }),
         });
+
+        if (!authRes.ok) {
+          const authError = await authRes.text();
+          console.error(`[OpenFinance] Falha na autenticação Pluggy (HTTP ${authRes.status}):`, authError);
+          return { error: `Credenciais da Pluggy inválidas ou expiradas no arquivo server/.env (HTTP ${authRes.status}).` };
+        }
+
         const authData = (await authRes.json()) as { apiKey: string };
 
-        // Create Connect Token
         const tokenRes = await fetch(`${env.PLUGGY_BASE_URL}/connect_token`, {
           method: 'POST',
           headers: {
@@ -75,16 +88,23 @@ export class OpenFinanceService {
           },
           body: JSON.stringify({ clientUserId: userId }),
         });
+
+        if (!tokenRes.ok) {
+          const tokenError = await tokenRes.text();
+          console.error(`[OpenFinance] Falha ao criar connect_token (HTTP ${tokenRes.status}):`, tokenError);
+          return { error: 'Não foi possível gerar token de conexão com a Pluggy.' };
+        }
+
         const tokenData = (await tokenRes.json()) as { accessToken: string };
         return { connectToken: tokenData.accessToken };
-      } catch (err) {
-        console.error('[OpenFinance] Erro ao obter connect token da Pluggy, fallback mock:', err);
+      } catch (err: any) {
+        console.error('[OpenFinance] Erro de rede ao conectar com a Pluggy:', err);
+        return { error: 'Erro de conexão com os servidores da Pluggy.' };
       }
     }
 
-    // Fallback sandbox token for testing without API keys
     return {
-      connectToken: `catfish_sandbox_token_${Buffer.from(userId + Date.now()).toString('base64')}`,
+      error: 'PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET não configurados no server/.env. Insira suas credenciais da Pluggy no arquivo server/.env para abrir o catálogo oficial.',
     };
   }
 
@@ -335,5 +355,63 @@ export class OpenFinanceService {
         ]
       );
     }
+  }
+
+  /**
+   * Imports transactions and updates account balance from an OFX file
+   */
+  static async importOfxData(
+    userId: string,
+    accountName: string,
+    transactions: Array<{
+      id?: string;
+      externalProviderId?: string;
+      description: string;
+      amount: number;
+      type: string;
+      category?: string;
+      date: string;
+    }>,
+    newBalance?: number
+  ) {
+    if (isDbLive()) {
+      // 1. Ensure or find account for this institution
+      const accRes = await query<{ id: string }>(
+        `SELECT id FROM accounts WHERE user_id = $1 AND (name ILIKE $2 OR institution_name ILIKE $2) LIMIT 1`,
+        [userId, `%${accountName}%`]
+      );
+
+      let accountId = accRes[0]?.id;
+      if (!accountId) {
+        const newAcc = await query<{ id: string }>(
+          `INSERT INTO accounts (user_id, bank_connection_id, external_account_id, name, institution_name, account_type, subtype, current_balance, credit_limit, used_limit, available_limit, is_active)
+           VALUES ($1, 'ofx-conn', $2, $3, $3, 'checking', 'CHECKING', $4, 0, 0, 0, true)
+           RETURNING id`,
+          [userId, `ofx-acc-${Date.now()}`, accountName, newBalance ?? 0]
+        );
+        accountId = newAcc[0]?.id;
+      } else if (newBalance !== undefined) {
+        await query(`UPDATE accounts SET current_balance = $1, updated_at = NOW() WHERE id = $2`, [newBalance, accountId]);
+      }
+
+      // 2. Upsert transactions
+      for (const tx of transactions) {
+        const txId = tx.externalProviderId || tx.id || `ofx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const txType = tx.type === 'receita' || tx.type === 'ren' ? 'income' : 'expense';
+        await query(
+          `INSERT INTO transactions (user_id, account_id, external_provider_id, amount, transaction_date, description, type, raw_provider_category, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'SETTLED')
+           ON CONFLICT (external_provider_id) DO UPDATE
+           SET amount = EXCLUDED.amount,
+               description = EXCLUDED.description,
+               updated_at = NOW()`,
+          [userId, accountId, txId, tx.amount, tx.date, tx.description, txType, tx.category || 'Outros']
+        );
+      }
+
+      return { success: true, count: transactions.length, accountId };
+    }
+
+    return { success: true, count: transactions.length };
   }
 }
