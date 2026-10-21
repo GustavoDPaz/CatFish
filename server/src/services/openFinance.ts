@@ -42,107 +42,7 @@ class MemoryStore {
   transactions: Map<string, any[]> = new Map();
 
   constructor() {
-    // Seed initial demo multi-bank data for user 'usr-felipe-default'
-    const defaultUserId = 'usr-felipe-default';
-    this.connections.set(defaultUserId, [
-      {
-        id: 'conn-itau-001',
-        user_id: defaultUserId,
-        provider: 'pluggy',
-        item_id: 'item-itau-pluggy-88',
-        institution_id: 'itau',
-        institution_name: 'Itaú Unibanco',
-        institution_logo_url: 'https://assets.pluggy.ai/connectors/itau.svg',
-        status: 'ACTIVE',
-        encrypted_access_token: encryptData('mock_itau_token_pluggy'),
-        last_synced_at: new Date().toISOString(),
-        created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-      },
-      {
-        id: 'conn-nubank-002',
-        user_id: defaultUserId,
-        provider: 'pluggy',
-        item_id: 'item-nu-pluggy-99',
-        institution_id: 'nubank',
-        institution_name: 'Nubank S.A.',
-        institution_logo_url: 'https://assets.pluggy.ai/connectors/nubank.svg',
-        status: 'ACTIVE',
-        encrypted_access_token: encryptData('mock_nu_token_pluggy'),
-        last_synced_at: new Date().toISOString(),
-        created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
-      }
-    ]);
-
-    this.accounts.set(defaultUserId, [
-      {
-        id: 'acc-itau-chk',
-        user_id: defaultUserId,
-        bank_connection_id: 'conn-itau-001',
-        external_account_id: 'ext-itau-chk-1',
-        name: 'Conta Corrente Itaú',
-        institution_name: 'Itaú Unibanco',
-        account_type: 'checking',
-        subtype: 'CHECKING',
-        current_balance: 2450.00,
-        credit_limit: 0,
-        used_limit: 0,
-        available_limit: 0,
-        color: '#EC7000',
-        is_active: true,
-      },
-      {
-        id: 'acc-itau-card',
-        user_id: defaultUserId,
-        bank_connection_id: 'conn-itau-001',
-        external_account_id: 'ext-itau-card-1',
-        name: 'Itaú Visa Infinite',
-        institution_name: 'Itaú Unibanco',
-        account_type: 'credit_card',
-        subtype: 'CREDIT_CARD',
-        current_balance: 0,
-        credit_limit: 15000.00,
-        used_limit: 3820.50,
-        available_limit: 11179.50,
-        closing_day: 18,
-        due_day: 25,
-        color: '#EC7000',
-        is_active: true,
-      },
-      {
-        id: 'acc-nu-chk',
-        user_id: defaultUserId,
-        bank_connection_id: 'conn-nubank-002',
-        external_account_id: 'ext-nu-chk-1',
-        name: 'Conta Nubank',
-        institution_name: 'Nubank S.A.',
-        account_type: 'checking',
-        subtype: 'CHECKING',
-        current_balance: 1750.00,
-        credit_limit: 0,
-        used_limit: 0,
-        available_limit: 0,
-        color: '#820AD1',
-        is_active: true,
-      },
-      {
-        id: 'acc-nu-card',
-        user_id: defaultUserId,
-        bank_connection_id: 'conn-nubank-002',
-        external_account_id: 'ext-nu-card-1',
-        name: 'Nubank Ultravioleta',
-        institution_name: 'Nubank S.A.',
-        account_type: 'credit_card',
-        subtype: 'CREDIT_CARD',
-        current_balance: 0,
-        credit_limit: 10000.00,
-        used_limit: 2150.00,
-        available_limit: 7850.00,
-        closing_day: 5,
-        due_day: 12,
-        color: '#820AD1',
-        is_active: true,
-      }
-    ]);
+    // Clean initial state - connections and accounts are added dynamically via Pluggy Open Finance
   }
 }
 
@@ -251,6 +151,21 @@ export class OpenFinanceService {
       );
     }
     return memoryStore.connections.get(userId) || [];
+  }
+
+  /**
+   * Deletes a bank connection and cleans up associated accounts (Anti-IDOR safe)
+   */
+  static async deleteConnection(userId: string, connectionId: string): Promise<boolean> {
+    if (isDbLive()) {
+      await query(`DELETE FROM bank_connections WHERE (id = $1 OR item_id = $1) AND user_id = $2`, [connectionId, userId]);
+      return true;
+    }
+    const userConns = memoryStore.connections.get(userId) || [];
+    memoryStore.connections.set(userId, userConns.filter((c) => c.id !== connectionId && c.item_id !== connectionId));
+    const userAccounts = memoryStore.accounts.get(userId) || [];
+    memoryStore.accounts.set(userId, userAccounts.filter((a) => a.bank_connection_id !== connectionId));
+    return true;
   }
 
   /**

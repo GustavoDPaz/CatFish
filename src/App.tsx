@@ -86,61 +86,19 @@ export const App: React.FC = () => {
   const [isSyncingOpenFinance, setIsSyncingOpenFinance] = useState(false);
 
   const [consolidatedBalances, setConsolidatedBalances] = useState<ConsolidatedBalances>({
-    consolidatedTotal: 4200,
-    accounts: [
-      {
-        accountId: 'acc-itau-chk',
-        institutionName: 'Itaú Unibanco',
-        accountName: 'Conta Corrente Itaú',
-        balance: 2450.00,
-        color: '#EC7000',
-        type: 'checking',
-      },
-      {
-        accountId: 'acc-nu-chk',
-        institutionName: 'Nubank S.A.',
-        accountName: 'Conta Nubank',
-        balance: 1750.00,
-        color: '#820AD1',
-        type: 'checking',
-      },
-    ],
+    consolidatedTotal: 0,
+    accounts: [],
     lastUpdated: new Date().toISOString(),
   });
 
   const [creditCardsSummary, setCreditCardsSummary] = useState<CreditCardsSummary>({
     consolidated: {
-      totalLimit: 25000,
-      totalUsed: 5970.50,
-      totalAvailable: 19029.50,
-      usagePercent: 24,
+      totalLimit: 0,
+      totalUsed: 0,
+      totalAvailable: 0,
+      usagePercent: 0,
     },
-    cards: [
-      {
-        accountId: 'acc-itau-card',
-        institutionName: 'Itaú Unibanco',
-        cardName: 'Itaú Visa Infinite',
-        totalLimit: 15000,
-        usedLimit: 3820.50,
-        availableLimit: 11179.50,
-        usagePercent: 25,
-        closingDay: 18,
-        dueDay: 25,
-        color: '#EC7000',
-      },
-      {
-        accountId: 'acc-nu-card',
-        institutionName: 'Nubank S.A.',
-        cardName: 'Nubank Ultravioleta',
-        totalLimit: 10000,
-        usedLimit: 2150.00,
-        availableLimit: 7850.00,
-        usagePercent: 22,
-        closingDay: 5,
-        dueDay: 12,
-        color: '#820AD1',
-      },
-    ],
+    cards: [],
   });
 
   const [bankConnections, setBankConnections] = useState<BankConnection[]>([]);

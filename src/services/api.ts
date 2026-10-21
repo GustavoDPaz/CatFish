@@ -1,89 +1,34 @@
 import type { ConsolidatedBalances, CreditCardsSummary, BankConnection, ChatMessage } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api';
+const getApiBase = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim() !== '' && !envUrl.includes('localhost:3001')) {
+    return `${envUrl.replace(/\/+$/, '')}/api`;
+  }
+  return '/api';
+};
+
+const API_BASE = getApiBase();
 
 // Fallback in-memory state when server container is not active in dev
 const localFallbackState = {
   balances: {
-    consolidatedTotal: 4200.00,
-    accounts: [
-      {
-        accountId: 'acc-itau-chk',
-        institutionName: 'Itaú Unibanco',
-        accountName: 'Conta Corrente Itaú',
-        balance: 2450.00,
-        color: '#EC7000',
-        type: 'checking',
-      },
-      {
-        accountId: 'acc-nu-chk',
-        institutionName: 'Nubank S.A.',
-        accountName: 'Conta Nubank',
-        balance: 1750.00,
-        color: '#820AD1',
-        type: 'checking',
-      },
-    ],
+    consolidatedTotal: 0.00,
+    accounts: [],
     lastUpdated: new Date().toISOString(),
   } as ConsolidatedBalances,
 
   cards: {
     consolidated: {
-      totalLimit: 25000.00,
-      totalUsed: 5970.50,
-      totalAvailable: 19029.50,
-      usagePercent: 24,
+      totalLimit: 0.00,
+      totalUsed: 0.00,
+      totalAvailable: 0.00,
+      usagePercent: 0,
     },
-    cards: [
-      {
-        accountId: 'acc-itau-card',
-        institutionName: 'Itaú Unibanco',
-        cardName: 'Itaú Visa Infinite',
-        totalLimit: 15000.00,
-        usedLimit: 3820.50,
-        availableLimit: 11179.50,
-        usagePercent: 25,
-        closingDay: 18,
-        dueDay: 25,
-        color: '#EC7000',
-      },
-      {
-        accountId: 'acc-nu-card',
-        institutionName: 'Nubank S.A.',
-        cardName: 'Nubank Ultravioleta',
-        totalLimit: 10000.00,
-        usedLimit: 2150.00,
-        availableLimit: 7850.00,
-        usagePercent: 22,
-        closingDay: 5,
-        dueDay: 12,
-        color: '#820AD1',
-      },
-    ],
+    cards: [],
   } as CreditCardsSummary,
 
-  connections: [
-    {
-      id: 'conn-itau-001',
-      provider: 'pluggy',
-      itemId: 'item-itau-pluggy-88',
-      institutionId: 'itau',
-      institutionName: 'Itaú Unibanco',
-      institutionLogoUrl: 'https://assets.pluggy.ai/connectors/itau.svg',
-      status: 'ACTIVE',
-      lastSyncedAt: new Date().toISOString(),
-    },
-    {
-      id: 'conn-nubank-002',
-      provider: 'pluggy',
-      itemId: 'item-nu-pluggy-99',
-      institutionId: 'nubank',
-      institutionName: 'Nubank S.A.',
-      institutionLogoUrl: 'https://assets.pluggy.ai/connectors/nubank.svg',
-      status: 'ACTIVE',
-      lastSyncedAt: new Date().toISOString(),
-    },
-  ] as BankConnection[],
+  connections: [] as BankConnection[],
 };
 
 export const api = {
@@ -141,6 +86,23 @@ export const api = {
       }
     } catch {}
     return localFallbackState.connections;
+  },
+
+  /**
+   * Delete or disconnect bank connection
+   */
+  async deleteConnection(connectionId: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/open-finance/connections/${connectionId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        localFallbackState.connections = localFallbackState.connections.filter((c) => c.id !== connectionId && c.itemId !== connectionId);
+        return true;
+      }
+    } catch {}
+    localFallbackState.connections = localFallbackState.connections.filter((c) => c.id !== connectionId && c.itemId !== connectionId);
+    return true;
   },
 
   /**

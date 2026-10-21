@@ -29,8 +29,8 @@ async function main() {
   // 1. CORS Setup
   await app.register(cors, {
     origin: (origin, cb) => {
-      // Allow localhost dev servers or configured domain
-      if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      // Allow localhost dev servers or configured domain or Tailscale Funnel domain
+      if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('ts.net')) {
         cb(null, true);
         return;
       }

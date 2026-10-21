@@ -66,6 +66,8 @@ export async function webhookRoutes(app: FastifyInstance) {
   };
 
   // Route aliases: /api/webhooks/pluggy and /api/webhooks/open-finance
+  app.get('/pluggy', async () => ({ received: true, status: 'ok' }));
+  app.get('/open-finance', async () => ({ received: true, status: 'ok' }));
   app.post('/pluggy', handlePluggyWebhook);
   app.post('/open-finance', handlePluggyWebhook);
 }

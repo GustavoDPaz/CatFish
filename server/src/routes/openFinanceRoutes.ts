@@ -48,6 +48,17 @@ export async function openFinanceRoutes(app: FastifyInstance) {
     return reply.send({ connections });
   });
 
+  // 3.5. Delete / disconnect a bank connection
+  app.delete('/connections/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = getUserId(req);
+    const { id } = req.params as { id: string };
+    if (!id) {
+      return reply.status(400).send({ error: 'ID da conexão é obrigatório.' });
+    }
+    await OpenFinanceService.deleteConnection(userId, id);
+    return reply.send({ success: true, message: 'Conexão removida com sucesso.' });
+  });
+
   // 4. Manual on-demand sync with debounce & rate-limiting
   app.post('/sync', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = getUserId(req);

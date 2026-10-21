@@ -301,8 +301,31 @@ export class GeminiAgentService {
       };
     }
 
+    if (lower.includes('dívida') || lower.includes('divida') || lower.includes('empréstimo') || lower.includes('juros')) {
+      return {
+        text: `Consultando seus registros de compromissos financeiros: suas parcelas estão sob monitoramento no painel. Recomendo manter o teto sob controle e priorizar a quitação das parcelas com maior incidência de juros.\n\nDeseja simular o impacto de amortizar alguma dívida agora?`,
+        toolsExecuted: ['get_spending_limits_and_goals'],
+      };
+    }
+
+    if (lower.includes('meta') || lower.includes('objetivo') || lower.includes('reserva') || lower.includes('guardar')) {
+      return {
+        text: `Suas metas financeiras e a Reserva de Emergência estão ativas no CatFish. O ideal é destinar de 10% a 20% das suas entradas mensais para acelerar o cumprimento do seu fundo de segurança antes de novos investimentos.`,
+        toolsExecuted: ['get_spending_limits_and_goals'],
+      };
+    }
+
+    const hasApiKey = Boolean(env.GEMINI_API_KEY && env.GEMINI_API_KEY.trim() !== '');
+
+    if (!hasApiKey) {
+      return {
+        text: `Compreendi sua pergunta: *"**${message}**"*.\n\n⚠️ **Aviso de Configuração:** A chave \`GEMINI_API_KEY\` ainda não está configurada no arquivo \`.env\` do backend. Por enquanto, estou respondendo em modo de consulta local pré-programado.\n\n💡 Para ativar todo o poder da inteligência artificial generativa com raciocínio financeiro em tempo real, basta adicionar sua chave gratuita no arquivo \`server/.env\` na variável \`GEMINI_API_KEY=sua_chave_aqui\` e reiniciar o container.\n\nEnquanto isso, você pode me perguntar sobre: **saldo**, **limite dos cartões**, **extrato** ou **dívidas**!`,
+        toolsExecuted: executed,
+      };
+    }
+
     return {
-      text: `Olá! Sou o **CatFish AI**, seu copiloto financeiro com Open Finance integrado. Posso te ajudar a:\n\n1. Consultar seu **Saldo consolidado e detalhado** de todas as suas contas bancárias.\n2. Visualizar **limites e faturas de cartões de crédito** (Itaú, Nubank, etc.).\n3. Analisar **lançamentos recentes** e conferir se você está dentro dos tetos de gastos.\n\nComo posso te apoiar hoje?`,
+      text: `Olá! Sou o **CatFish AI**, seu copiloto financeiro com Open Finance integrado. Posso te ajudar a:\n\n1. Consultar seu **Saldo consolidado e detalhado** das suas contas bancárias.\n2. Visualizar **limites e faturas de cartões de crédito**.\n3. Analisar **lançamentos recentes** e gastos por categoria.\n\nComo posso te ajudar hoje?`,
       toolsExecuted: executed,
     };
   }
