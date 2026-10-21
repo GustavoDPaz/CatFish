@@ -35,6 +35,27 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
 
+-- 2.5 TABELA DE CONEXÕES OPEN FINANCE (AGREGADOR PLUGGY / BELVO)
+CREATE TABLE IF NOT EXISTS bank_connections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider VARCHAR(40) NOT NULL DEFAULT 'pluggy',
+    item_id VARCHAR(100) NOT NULL,
+    institution_id VARCHAR(60),
+    institution_name VARCHAR(120) NOT NULL,
+    institution_logo_url TEXT,
+    status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+    encrypted_access_token TEXT NOT NULL,
+    last_synced_at TIMESTAMPTZ,
+    last_error_code VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_user_provider_item UNIQUE (user_id, provider, item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bank_connections_user ON bank_connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_bank_connections_status ON bank_connections(status);
+
 -- 3. CONTAS E CARTEIRAS FINANCEIRAS
 DO $$ BEGIN
     CREATE TYPE account_type_enum AS ENUM ('checking', 'wallet', 'credit_card', 'emergency_fund', 'investment');
@@ -45,11 +66,18 @@ END $$;
 CREATE TABLE IF NOT EXISTS accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    bank_connection_id UUID REFERENCES bank_connections(id) ON DELETE CASCADE,
+    external_account_id VARCHAR(100),
     name VARCHAR(100) NOT NULL,
     institution_name VARCHAR(100),
     account_type account_type_enum NOT NULL,
+    subtype VARCHAR(30) DEFAULT 'CHECKING',
     current_balance NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
     credit_limit NUMERIC(14, 2) DEFAULT 0.00,
+    used_limit NUMERIC(14, 2) DEFAULT 0.00,
+    available_limit NUMERIC(14, 2) DEFAULT 0.00,
+    closing_day INT CHECK (closing_day BETWEEN 1 AND 31),
+    due_day INT CHECK (due_day BETWEEN 1 AND 31),
     color VARCHAR(20) DEFAULT '#10b981',
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -57,6 +85,9 @@ CREATE TABLE IF NOT EXISTS accounts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_conn ON accounts(bank_connection_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_account_conn_external ON accounts(bank_connection_id, external_account_id)
+WHERE bank_connection_id IS NOT NULL;
 
 -- 4. CATEGORIAS DE RECEITAS E DESPESAS
 DO $$ BEGIN
@@ -78,7 +109,7 @@ CREATE TABLE IF NOT EXISTS categories (
 
 CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id);
 
--- 5. TRANSAÇÕES E LANÇAMENTOS CONTÁBEIS
+-- 5. TRANSAÇÕES E LANÇAMENTOS CONTÁBEIS (COM IDEMPOTÊNCIA OPEN FINANCE)
 DO $$ BEGIN
     CREATE TYPE transaction_type_enum AS ENUM ('income', 'expense', 'transfer', 'reserve_deposit');
 EXCEPTION
@@ -96,6 +127,9 @@ CREATE TABLE IF NOT EXISTS transactions (
     transaction_date DATE NOT NULL,
     description VARCHAR(255) NOT NULL,
     notes TEXT,
+    external_provider_id VARCHAR(150),
+    raw_provider_category VARCHAR(100),
+    status VARCHAR(20) DEFAULT 'SETTLED',
     is_recurring BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -104,6 +138,8 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, transaction_date DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tx_external_provider_id ON transactions(external_provider_id)
+WHERE external_provider_id IS NOT NULL;
 
 -- 6. DÍVIDAS, PARCELAMENTOS E AMORTIZAÇÃO
 DO $$ BEGIN
@@ -179,6 +215,7 @@ CREATE TABLE IF NOT EXISTS financial_goals (
 CREATE INDEX IF NOT EXISTS idx_goals_user ON financial_goals(user_id);
 
 -- ROW LEVEL SECURITY (RLS)
+ALTER TABLE bank_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE debts ENABLE ROW LEVEL SECURITY;
