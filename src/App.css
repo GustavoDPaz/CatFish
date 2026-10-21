@@ -2031,6 +2031,54 @@
 }
 
 /* --------------------------------------------------------------------------
+   Secondary Action Button Utility
+   -------------------------------------------------------------------------- */
+.cf-btn-secondary {
+  background: var(--bg-surface, #ffffff);
+  color: var(--text-main, #1e293b);
+  border: 1px solid var(--border-color, #cbd5e1);
+  font-weight: 600;
+  font-size: 0.86rem;
+  padding: 0.6rem 1.15rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.cf-btn-secondary:hover {
+  background: var(--bg-surface-subtle, #f8fafc);
+  border-color: var(--color-accent-blue, #2563eb);
+  color: var(--color-accent-blue, #2563eb);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+}
+
+.cf-btn-secondary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='dark'] .cf-btn-secondary {
+  background: #141c28;
+  border-color: #263348;
+  color: #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='dark'] .cf-btn-secondary:hover {
+  background: #1a2436;
+  border-color: #3b82f6;
+  color: #60a5fa;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15);
+}
+
+/* --------------------------------------------------------------------------
    Seamless Dashboard & Greeting Hero
    -------------------------------------------------------------------------- */
 .main-content {

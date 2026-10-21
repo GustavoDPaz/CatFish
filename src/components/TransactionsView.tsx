@@ -207,9 +207,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 className="cf-btn-secondary"
                 onClick={onOpenOfxModal}
                 title="Importar extrato bancário em formato .OFX"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 0.95rem' }}
               >
-                <FileSpreadsheet size={15} />
+                <FileSpreadsheet size={16} />
                 <span>Importar OFX</span>
               </button>
             )}
