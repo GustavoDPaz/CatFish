@@ -8,6 +8,7 @@ import {
   Target,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Menu,
   LogOut,
   Sun,
@@ -15,6 +16,9 @@ import {
   Volume2,
   VolumeX,
   Plus,
+  Bot,
+  Landmark,
+  RefreshCw,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,6 +37,11 @@ interface SidebarProps {
   totalAura?: number;
   totalDebt: number;
   isRiskMode?: boolean;
+  onOpenAiAssistant?: () => void;
+  isAiOpen?: boolean;
+  onOpenBalanceBreakdown?: () => void;
+  onOpenOpenFinance?: () => void;
+  isSyncingBalance?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -51,6 +60,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   totalAura,
   totalDebt,
   isRiskMode = false,
+  onOpenAiAssistant,
+  isAiOpen = false,
+  onOpenBalanceBreakdown,
+  onOpenOpenFinance,
+  isSyncingBalance = false,
 }) => {
   const currentTotal = totalBalance ?? totalAura ?? 0;
   const formatCurrency = (val: number) => {
@@ -61,43 +75,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside className={`cf-sidebar ${isOpen ? 'cf-sidebar-open' : 'cf-sidebar-closed'}`}>
-      {/* Sidebar Header: When closed, hide site logo completely and show only the open button */}
+      {/* Sidebar Header */}
       {isOpen ? (
         <div className="cf-sidebar-header">
           <div className="cf-brand-row">
             <div className="cf-logo-box" title="CatFish Finanças">
-              {/* Clean CatFish SVG Icon */}
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path 
-                  d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" 
-                  fill="#10B981" 
-                />
-                <path 
-                  d="M8 11C8.82843 11 9.5 10.3284 9.5 9.5C9.5 8.67157 8.82843 8 8 8C7.17157 8 6.5 8.67157 6.5 9.5C6.5 10.3284 7.17157 11 8 11Z" 
-                  fill="#064E3B" 
-                />
-                <path 
-                  d="M16 11C16.8284 11 17.5 10.3284 17.5 9.5C17.5 8.67157 16.8284 8 16 8C15.1716 8 14.5 8.67157 14.5 9.5C14.5 10.3284 15.1716 11 16 11Z" 
-                  fill="#064E3B" 
-                />
-                <path 
-                  d="M8.5 14.5C9.5 16 14.5 16 15.5 14.5" 
-                  stroke="#064E3B" 
-                  strokeWidth="1.8" 
-                  strokeLinecap="round" 
-                />
-                <path 
-                  d="M3 13C4.5 13.5 6 12.5 6 12.5" 
-                  stroke="#064E3B" 
-                  strokeWidth="1.5" 
-                  strokeLinecap="round" 
-                />
-                <path 
-                  d="M21 13C19.5 13.5 18 12.5 18 12.5" 
-                  stroke="#064E3B" 
-                  strokeWidth="1.5" 
-                  strokeLinecap="round" 
-                />
+                <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" fill="#10B981" />
+                <path d="M8 11C8.82843 11 9.5 10.3284 9.5 9.5C9.5 8.67157 8.82843 8 8 8C7.17157 8 6.5 8.67157 6.5 9.5C6.5 10.3284 7.17157 11 8 11Z" fill="#064E3B" />
+                <path d="M16 11C16.8284 11 17.5 10.3284 17.5 9.5C17.5 8.67157 16.8284 8 16 8C15.1716 8 14.5 8.67157 14.5 9.5C14.5 10.3284 15.1716 11 16 11Z" fill="#064E3B" />
+                <path d="M8.5 14.5C9.5 16 14.5 16 15.5 14.5" stroke="#064E3B" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M3 13C4.5 13.5 6 12.5 6 12.5" stroke="#064E3B" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M21 13C19.5 13.5 18 12.5 18 12.5" stroke="#064E3B" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             </div>
 
@@ -107,7 +96,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          {/* Collapse Toggle */}
           <button 
             className="cf-sidebar-toggle-btn"
             onClick={onToggleOpen}
@@ -175,6 +163,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {isOpen && <span className="cf-nav-label">Visão geral</span>}
           </button>
 
+          {/* Assistente IA (Google Gemini) */}
+          <button
+            className={`cf-nav-item ${isAiOpen ? 'active cf-nav-item-ai' : ''}`}
+            onClick={onOpenAiAssistant}
+            title="Assistente de IA Financeiro (Google Gemini)"
+          >
+            <div className="cf-nav-icon">
+              <Bot size={19} className="cf-icon-gemini" />
+            </div>
+            {isOpen && (
+              <div className="cf-nav-label-wrapper">
+                <span className="cf-nav-label">Assistente IA</span>
+                <span className="cf-pill-ia">
+                  GEMINI
+                </span>
+              </div>
+            )}
+          </button>
+
+          {/* Open Finance */}
+          <button
+            className="cf-nav-item"
+            onClick={onOpenOpenFinance}
+            title="Contas Conectadas (Open Finance BACEN)"
+          >
+            <div className="cf-nav-icon">
+              <Landmark size={19} />
+            </div>
+            {isOpen && (
+              <div className="cf-nav-label-wrapper">
+                <span className="cf-nav-label">Open Finance</span>
+                <span className="cf-pill-open-finance">
+                  MULTI-BANCO
+                </span>
+              </div>
+            )}
+          </button>
+
           {/* Dívidas */}
           <button
             className={`cf-nav-item ${activeTab === 'apr' ? 'active' : ''}`}
@@ -239,13 +265,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Bottom User & Balance Info */}
       <div className="cf-sidebar-footer">
-        {isOpen && (
-          <div className="cf-balance-pill">
-            <span className="cf-balance-caption">Saldo disponível</span>
-            <span className="cf-balance-amount mono-number">
-              {formatCurrency(currentTotal)}
-            </span>
+        {isOpen ? (
+          <div 
+            className="cf-balance-pill cf-balance-interactive"
+            onClick={onOpenBalanceBreakdown}
+            role="button"
+            tabIndex={0}
+            title="Clique para ver detalhamento de saldos consolidados e individuais"
+            aria-label="Abrir detalhamento de saldo Open Finance"
+          >
+            <div className="cf-balance-caption-row">
+              <span className="cf-balance-caption">Saldo disponível</span>
+              <span className="cf-balance-expand-hint">
+                Multi-bancos <ChevronDown size={11} />
+              </span>
+            </div>
+            <div className="cf-balance-amount-row">
+              <span className="cf-balance-amount mono-number">
+                {formatCurrency(currentTotal)}
+              </span>
+              {isSyncingBalance && (
+                <RefreshCw size={13} className="cf-spin cf-text-emerald" />
+              )}
+            </div>
           </div>
+        ) : (
+          <button
+            className="cf-sidebar-collapsed-balance-btn"
+            onClick={onOpenBalanceBreakdown}
+            title={`Saldo disponível consolidado: ${formatCurrency(currentTotal)} (Clique para detalhar)`}
+            aria-label="Abrir detalhamento de saldo Open Finance"
+          >
+            <Landmark size={17} />
+          </button>
         )}
 
         {/* User Profile Card */}

@@ -1,14 +1,18 @@
-import React from 'react';
-import type { Transaction, Debt, UserProfile } from '../types';
+import React, { useState } from 'react';
+import type { Transaction, Debt, UserProfile, CreditCardsSummary } from '../types';
 import {
   Landmark,
   CreditCard,
   Wallet,
   Shield,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ArrowRight,
   TrendingDown,
   CheckCircle2,
+  Calendar,
+  Sparkles,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -25,6 +29,9 @@ interface DashboardViewProps {
   onDeleteTransaction?: (id: string) => void;
   onOpenFinancials?: () => void;
   isRiskMode?: boolean;
+  creditCardsSummary?: CreditCardsSummary;
+  onOpenOpenFinance?: () => void;
+  onOpenAiAssistant?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -34,7 +41,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateToDebts,
   onOpenFinancials,
   isRiskMode,
+  creditCardsSummary,
+  onOpenOpenFinance,
+  onOpenAiAssistant,
 }) => {
+  const [isCardsExpanded, setIsCardsExpanded] = useState(false);
   // Financial Accounting
   const totalIncome = transactions
     .filter((t) => t.type === 'receita' || t.type === 'ren')
@@ -111,10 +122,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <span className="cf-greeting-date">
             {todayFormatted}
           </span>
-          <span className={`cf-risk-mode-pill ${isRiskMode ? 'cf-risk-mode-pill-danger' : ''}`}>
-            <span className="cf-status-dot-active" />
-            {isRiskMode ? 'Modo de risco ativo' : 'Finanças estáveis'}
-          </span>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {onOpenAiAssistant && (
+              <button 
+                className="cf-pill-ia" 
+                onClick={onOpenAiAssistant}
+                title="Abrir Assistente Financeiro IA"
+                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '3px 8px' }}
+              >
+                <Sparkles size={11} />
+                <span>Análise com IA</span>
+              </button>
+            )}
+            <span className={`cf-risk-mode-pill ${isRiskMode ? 'cf-risk-mode-pill-danger' : ''}`}>
+              <span className="cf-status-dot-active" />
+              {isRiskMode ? 'Modo de risco ativo' : 'Finanças estáveis'}
+            </span>
+          </div>
         </div>
 
         <h1 className="cf-greeting-title">
@@ -267,15 +291,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </h2>
             </div>
 
-            {onOpenFinancials && (
-              <button 
-                className="cf-link-blue cf-adjust-limits-btn"
-                onClick={onOpenFinancials}
-                title="Ajustar limites e saldos"
-              >
-                Ajustar limites
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              {onOpenOpenFinance && (
+                <button
+                  className="cf-pill-open-finance"
+                  onClick={onOpenOpenFinance}
+                  title="Gerenciar Contas Conectadas Open Finance"
+                  style={{ cursor: 'pointer', border: 'none' }}
+                >
+                  <Landmark size={12} />
+                  <span>Open Finance</span>
+                </button>
+              )}
+              {onOpenFinancials && (
+                <button 
+                  className="cf-link-blue cf-adjust-limits-btn"
+                  onClick={onOpenFinancials}
+                  title="Ajustar limites e saldos"
+                >
+                  Ajustar limites
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="cf-accounts-list">
@@ -339,34 +376,102 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
 
-            {/* Account 3: Cartão de Crédito */}
-            <div 
-              className="cf-account-item"
-              onClick={onOpenFinancials}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onOpenFinancials?.();
-                }
-              }}
-              title="Clique para ajustar limite e fatura do cartão"
-              aria-label={`Cartão de crédito, fatura acumulada: ${formatCurrency(totalCardInvoice)}, limite usado em ${creditUsagePct}%`}
-            >
-              <div className="cf-acc-icon-box cf-icon-card">
-                <CreditCard size={20} aria-hidden="true" />
+            {/* Account 3: Cartão de Crédito (Consolidado + Drill-down) */}
+            <div className="cf-card-drilldown-wrapper">
+              <div 
+                className="cf-account-item"
+                onClick={() => setIsCardsExpanded((prev) => !prev)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setIsCardsExpanded((prev) => !prev);
+                  }
+                }}
+                title="Clique para alternar entre limite consolidado e individual por cartão"
+                aria-label="Cartão de crédito consolidado"
+              >
+                <div className="cf-acc-icon-box cf-icon-card">
+                  <CreditCard size={20} aria-hidden="true" />
+                </div>
+                <div className="cf-acc-info">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span className="cf-acc-name">Cartões de crédito</span>
+                    {creditCardsSummary?.cards && creditCardsSummary.cards.length > 0 && (
+                      <span className="cf-card-count-badge">
+                        {creditCardsSummary.cards.length} cartões
+                      </span>
+                    )}
+                  </div>
+                  <span className="cf-acc-sub">
+                    {creditCardsSummary 
+                      ? `Limite usado em ${creditCardsSummary.consolidated.usagePercent}% de ${formatCurrency(creditCardsSummary.consolidated.totalLimit)}`
+                      : `Limite usado em ${creditUsagePct}%`
+                    }
+                  </span>
+                </div>
+                <div className="cf-acc-right">
+                  <span className="cf-acc-val mono-number">
+                    -{formatCurrency(creditCardsSummary ? creditCardsSummary.consolidated.totalUsed : totalCardInvoice)}
+                  </span>
+                  {isCardsExpanded ? (
+                    <ChevronUp size={16} className="cf-acc-chevron" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown size={16} className="cf-acc-chevron" aria-hidden="true" />
+                  )}
+                </div>
               </div>
-              <div className="cf-acc-info">
-                <span className="cf-acc-name">Cartão de crédito</span>
-                <span className="cf-acc-sub">Limite usado em {creditUsagePct}%</span>
-              </div>
-              <div className="cf-acc-right">
-                <span className="cf-acc-val mono-number">
-                  -{formatCurrency(totalCardInvoice)}
-                </span>
-                <ChevronRight size={16} className="cf-acc-chevron" aria-hidden="true" />
-              </div>
+
+              {/* Expandable Drill-down Sub-cards */}
+              {isCardsExpanded && (
+                <div className="cf-cards-drilldown-list">
+                  {(creditCardsSummary?.cards && creditCardsSummary.cards.length > 0 ? creditCardsSummary.cards : [
+                    {
+                      accountId: 'card-default',
+                      institutionName: profile.bankName || 'Banco Principal',
+                      cardName: 'Cartão Principal',
+                      totalLimit: creditLimit,
+                      usedLimit: totalCardInvoice,
+                      availableLimit: Math.max(0, creditLimit - totalCardInvoice),
+                      usagePercent: creditUsagePct,
+                      closingDay: 15,
+                      dueDay: 22,
+                      color: '#10b981',
+                    }
+                  ]).map((card) => (
+                    <div key={card.accountId} className="cf-subcard-item">
+                      <div className="cf-subcard-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div className="cf-subcard-dot" style={{ backgroundColor: card.color || '#6366f1' }} />
+                          <div>
+                            <span className="cf-subcard-title">{card.cardName}</span>
+                            <span className="cf-subcard-inst">{card.institutionName}</span>
+                          </div>
+                        </div>
+                        <span className="cf-subcard-val mono-number">
+                          -{formatCurrency(card.usedLimit)}
+                        </span>
+                      </div>
+
+                      {/* Usage bar */}
+                      <div className="cf-subcard-track">
+                        <div 
+                          className="cf-subcard-fill" 
+                          style={{ width: `${Math.min(100, card.usagePercent)}%` }} 
+                        />
+                      </div>
+
+                      <div className="cf-subcard-footer">
+                        <span>Disponível: <strong className="mono-number">{formatCurrency(card.availableLimit)}</strong> de {formatCurrency(card.totalLimit)}</span>
+                        <span className="cf-subcard-dates">
+                          <Calendar size={11} /> Fecha dia {card.closingDay} • Vence dia {card.dueDay}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Account 4: Reserva de Emergência */}

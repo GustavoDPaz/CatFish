@@ -90,3 +90,69 @@ export interface AuthUser {
   avatarUrl?: string;
   createdAt: string;
 }
+
+// ==========================================
+// OPEN FINANCE (BACEN / AGREGADOR) TYPES
+// ==========================================
+
+export interface BankConnection {
+  id: string;
+  provider: string;
+  itemId: string;
+  institutionId: string;
+  institutionName: string;
+  institutionLogoUrl?: string;
+  status: 'ACTIVE' | 'UPDATING' | 'LOGIN_ERROR' | 'OUTDATED';
+  lastSyncedAt?: string;
+}
+
+export interface ConnectedAccount {
+  accountId: string;
+  institutionName: string;
+  accountName: string;
+  balance: number;
+  color?: string;
+  type: string;
+}
+
+export interface ConsolidatedBalances {
+  consolidatedTotal: number;
+  accounts: ConnectedAccount[];
+  lastUpdated: string;
+}
+
+export interface CreditCardDetail {
+  accountId: string;
+  institutionName: string;
+  cardName: string;
+  totalLimit: number;
+  usedLimit: number;
+  availableLimit: number;
+  usagePercent: number;
+  closingDay: number;
+  dueDay: number;
+  color?: string;
+}
+
+export interface CreditCardsSummary {
+  consolidated: {
+    totalLimit: number;
+    totalUsed: number;
+    totalAvailable: number;
+    usagePercent: number;
+  };
+  cards: CreditCardDetail[];
+}
+
+// ==========================================
+// ASSISTENTE DE IA (GEMINI AGENT) TYPES
+// ==========================================
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  toolsExecuted?: string[];
+}
+

@@ -9,9 +9,24 @@ import { GreedIslandView } from './components/GreedIslandView';
 import { ProfileModal } from './components/HunterLicenseModal';
 import { DebtAlertModal } from './components/ZetsuAlertModal';
 import { AuthView } from './components/AuthView';
+import { BalanceBreakdownPopover } from './components/BalanceBreakdownPopover';
+import { AiAssistantDrawer } from './components/AiAssistantDrawer';
+import { OpenFinanceModal } from './components/OpenFinanceModal';
 import { storage } from './utils/storage';
 import { audioManager } from './utils/audio';
-import type { Transaction, Debt, BudgetLimit, UserProfile, FinancialGoal, TransactionType, AuthUser } from './types';
+import { api } from './services/api';
+import type { 
+  Transaction, 
+  Debt, 
+  BudgetLimit, 
+  UserProfile, 
+  FinancialGoal, 
+  TransactionType, 
+  AuthUser,
+  ConsolidatedBalances,
+  CreditCardsSummary,
+  BankConnection,
+} from './types';
 import { X } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -63,6 +78,107 @@ export const App: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileModalTab, setProfileModalTab] = useState<'financial' | 'profile'>('financial');
   const [showDebtAlertModal, setShowDebtAlertModal] = useState(false);
+
+  // Open Finance & AI Assistant State
+  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
+  const [isBalancePopoverOpen, setIsBalancePopoverOpen] = useState(false);
+  const [isOpenFinanceModalOpen, setIsOpenFinanceModalOpen] = useState(false);
+  const [isSyncingOpenFinance, setIsSyncingOpenFinance] = useState(false);
+
+  const [consolidatedBalances, setConsolidatedBalances] = useState<ConsolidatedBalances>({
+    consolidatedTotal: 4200,
+    accounts: [
+      {
+        accountId: 'acc-itau-chk',
+        institutionName: 'Itaú Unibanco',
+        accountName: 'Conta Corrente Itaú',
+        balance: 2450.00,
+        color: '#EC7000',
+        type: 'checking',
+      },
+      {
+        accountId: 'acc-nu-chk',
+        institutionName: 'Nubank S.A.',
+        accountName: 'Conta Nubank',
+        balance: 1750.00,
+        color: '#820AD1',
+        type: 'checking',
+      },
+    ],
+    lastUpdated: new Date().toISOString(),
+  });
+
+  const [creditCardsSummary, setCreditCardsSummary] = useState<CreditCardsSummary>({
+    consolidated: {
+      totalLimit: 25000,
+      totalUsed: 5970.50,
+      totalAvailable: 19029.50,
+      usagePercent: 24,
+    },
+    cards: [
+      {
+        accountId: 'acc-itau-card',
+        institutionName: 'Itaú Unibanco',
+        cardName: 'Itaú Visa Infinite',
+        totalLimit: 15000,
+        usedLimit: 3820.50,
+        availableLimit: 11179.50,
+        usagePercent: 25,
+        closingDay: 18,
+        dueDay: 25,
+        color: '#EC7000',
+      },
+      {
+        accountId: 'acc-nu-card',
+        institutionName: 'Nubank S.A.',
+        cardName: 'Nubank Ultravioleta',
+        totalLimit: 10000,
+        usedLimit: 2150.00,
+        availableLimit: 7850.00,
+        usagePercent: 22,
+        closingDay: 5,
+        dueDay: 12,
+        color: '#820AD1',
+      },
+    ],
+  });
+
+  const [bankConnections, setBankConnections] = useState<BankConnection[]>([]);
+
+  const loadOpenFinanceData = async () => {
+    try {
+      const [balances, cards, conns] = await Promise.all([
+        api.getConsolidatedBalances(),
+        api.getCreditCardsSummary(),
+        api.getConnections(),
+      ]);
+      setConsolidatedBalances(balances);
+      setCreditCardsSummary(cards);
+      setBankConnections(conns);
+    } catch (err) {
+      console.warn('Erro ao carregar dados do Open Finance:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadOpenFinanceData();
+  }, []);
+
+  const handleSyncOpenFinance = async () => {
+    setIsSyncingOpenFinance(true);
+    try {
+      const result = await api.syncOpenFinance();
+      if (result.success) {
+        if (result.balances) setConsolidatedBalances(result.balances);
+        if (result.cards) setCreditCardsSummary(result.cards);
+        audioManager.playSuccessChime();
+      }
+    } catch (err) {
+      console.error('Falha ao sincronizar Open Finance:', err);
+    } finally {
+      setIsSyncingOpenFinance(false);
+    }
+  };
 
   // Quick Transaction Modal
   const [showQuickTxModal, setShowQuickTxModal] = useState(false);
@@ -288,7 +404,7 @@ export const App: React.FC = () => {
   const currentWallet = (profile.walletBalance ?? 1450) + netWalletTx;
   const currentReserve = (profile.emergencyFundBalance ?? 1500) + netReserveTx;
 
-  const totalBalance = currentBank + currentWallet + currentReserve;
+  const activeTotalBalance = consolidatedBalances?.consolidatedTotal ?? (currentBank + currentWallet + currentReserve);
 
   const totalDebt = debts
     .filter((d) => d.status === 'active')
@@ -333,9 +449,14 @@ export const App: React.FC = () => {
         onToggleSound={handleToggleSound}
         onOpenNewTransaction={() => setShowQuickTxModal(true)}
         onLogout={handleLogout}
-        totalBalance={totalBalance}
+        totalBalance={activeTotalBalance}
         totalDebt={totalDebt}
         isRiskMode={isElevatedDebt}
+        onOpenAiAssistant={() => setIsAiDrawerOpen(true)}
+        isAiOpen={isAiDrawerOpen}
+        onOpenBalanceBreakdown={() => setIsBalancePopoverOpen(true)}
+        onOpenOpenFinance={() => setIsOpenFinanceModalOpen(true)}
+        isSyncingBalance={isSyncingOpenFinance}
       />
 
       {/* Main Viewport */}
@@ -356,6 +477,9 @@ export const App: React.FC = () => {
             onDeleteTransaction={handleDeleteTransaction}
             onOpenFinancials={() => handleOpenProfileModal('financial')}
             isRiskMode={isElevatedDebt}
+            creditCardsSummary={creditCardsSummary}
+            onOpenOpenFinance={() => setIsOpenFinanceModalOpen(true)}
+            onOpenAiAssistant={() => setIsAiDrawerOpen(true)}
           />
         )}
 
@@ -573,6 +697,31 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Popover de Detalhamento do Saldo Consolidado e Individual (Open Finance) */}
+      <BalanceBreakdownPopover
+        isOpen={isBalancePopoverOpen}
+        onClose={() => setIsBalancePopoverOpen(false)}
+        balances={consolidatedBalances}
+        onSync={handleSyncOpenFinance}
+        isSyncing={isSyncingOpenFinance}
+        onOpenManageBanks={() => setIsOpenFinanceModalOpen(true)}
+      />
+
+      {/* Drawer de Chat com o Assistente de IA (Google Gemini) */}
+      <AiAssistantDrawer
+        isOpen={isAiDrawerOpen}
+        onClose={() => setIsAiDrawerOpen(false)}
+        userName={profile.name || 'Gustavo'}
+      />
+
+      {/* Modal de Gerenciamento de Conexões Bancárias Open Finance */}
+      <OpenFinanceModal
+        isOpen={isOpenFinanceModalOpen}
+        onClose={() => setIsOpenFinanceModalOpen(false)}
+        connections={bankConnections}
+        onRefreshConnections={loadOpenFinanceData}
+      />
     </div>
   );
 };

@@ -2866,6 +2866,939 @@
   flex-shrink: 0;
 }
 
+/* ==========================================================================
+   AI ASSISTANT (GEMINI) & OPEN FINANCE EXTENSIONS
+   ========================================================================== */
+
+/* Navigation Badges */
+.cf-pill-ia {
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  font-size: 0.60rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.cf-pill-open-finance {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  font-size: 0.60rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.cf-pill-open-finance:hover {
+  background: rgba(16, 185, 129, 0.22);
+}
+
+.cf-icon-gemini {
+  color: #38bdf8 !important;
+}
+
+.cf-nav-item-ai.active {
+  background: rgba(56, 189, 248, 0.14) !important;
+  border-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+/* Interactive Sidebar Balance Pill */
+.cf-balance-interactive {
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem !important;
+  margin: -0.25rem -0.35rem 0.25rem -0.35rem;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.cf-balance-interactive:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.cf-balance-caption-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.cf-balance-expand-hint {
+  font-size: 0.64rem;
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-weight: 600;
+}
+
+.cf-balance-amount-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cf-sidebar-collapsed-balance-btn {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  transition: all 0.15s ease;
+}
+
+.cf-sidebar-collapsed-balance-btn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  transform: scale(1.05);
+}
+
+/* ==========================================================================
+   BALANCE BREAKDOWN POPOVER
+   ========================================================================== */
+.cf-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cfFadeIn 0.15s ease-out;
+}
+
+.cf-balance-popover {
+  background: #181d28;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6);
+  padding: 1.25rem;
+  box-sizing: border-box;
+  animation: cfScaleUp 0.18s ease-out;
+}
+
+.cf-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.cf-popover-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cf-popover-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.cf-popover-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.cf-popover-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.cf-popover-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.cf-popover-toggle-group {
+  display: flex;
+  background: #0f131a;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 1rem;
+}
+
+.cf-popover-toggle-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cf-popover-toggle-btn.active {
+  background: #252d3d;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.cf-popover-consolidated-box {
+  background: #0f131a;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 1.25rem;
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.cf-popover-caption {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.cf-popover-huge-amount {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0.35rem 0 0.5rem 0;
+  letter-spacing: -0.02em;
+}
+
+.cf-popover-sub-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.cf-popover-accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.cf-popover-account-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  background: #0f131a;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.cf-popover-acc-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cf-popover-acc-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.cf-popover-acc-inst {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.cf-popover-acc-name {
+  font-size: 0.70rem;
+  color: #94a3b8;
+}
+
+.cf-popover-acc-balance {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.cf-popover-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cf-popover-sync-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.cf-popover-actions-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.cf-popover-sync-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  background: #10b981;
+  color: #064e3b;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.55rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cf-popover-sync-btn:hover:not(:disabled) {
+  background: #34d399;
+}
+
+.cf-popover-sync-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.cf-popover-manage-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.80rem;
+  font-weight: 600;
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cf-popover-manage-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   AI ASSISTANT (DRAWER)
+   ========================================================================== */
+.cf-ai-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  z-index: 10000;
+  display: flex;
+  justify-content: flex-end;
+  animation: cfFadeIn 0.2s ease-out;
+}
+
+.cf-ai-drawer {
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  background: #11151f;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.6);
+  box-sizing: border-box;
+  animation: cfSlideLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cf-ai-drawer-header {
+  padding: 1.15rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #161b26;
+}
+
+.cf-ai-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cf-ai-bot-avatar {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cf-ai-online-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2px solid #161b26;
+}
+
+.cf-ai-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.cf-ai-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.cf-ai-model-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.cf-ai-status-caption {
+  font-size: 0.70rem;
+  color: #94a3b8;
+  display: block;
+}
+
+.cf-ai-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.cf-ai-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.cf-ai-messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cf-ai-message-row {
+  display: flex;
+  gap: 0.65rem;
+  max-width: 88%;
+}
+
+.cf-ai-msg-assistant {
+  align-self: flex-start;
+}
+
+.cf-ai-msg-user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.cf-ai-msg-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.cf-ai-msg-bubble {
+  border-radius: 12px;
+  padding: 0.75rem 0.95rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  box-sizing: border-box;
+}
+
+.cf-ai-msg-assistant .cf-ai-msg-bubble {
+  background: #1c2331;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+
+.cf-ai-msg-user .cf-ai-msg-bubble {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.cf-ai-msg-text p {
+  margin: 0 0 0.4rem 0;
+}
+
+.cf-ai-msg-text p:last-child {
+  margin-bottom: 0;
+}
+
+.cf-bullet-point {
+  display: block;
+  margin-left: 0.25rem;
+  color: #f1f5f9;
+}
+
+.cf-ai-tools-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-bottom: 0.5rem;
+}
+
+.cf-ai-msg-time {
+  display: block;
+  font-size: 0.65rem;
+  opacity: 0.65;
+  text-align: right;
+  margin-top: 0.35rem;
+}
+
+.cf-ai-executing-tool-box {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.cf-ai-quick-prompts-bar {
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: #161b26;
+}
+
+.cf-ai-quick-caption {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  display: block;
+}
+
+.cf-ai-chips-list {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.cf-ai-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 0.74rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.cf-ai-chip-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+}
+
+.cf-ai-input-bar {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #11151f;
+}
+
+.cf-ai-input {
+  flex: 1;
+  background: #1b2230;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.cf-ai-input:focus {
+  border-color: #38bdf8;
+}
+
+.cf-ai-send-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cf-ai-send-btn:hover:not(:disabled) {
+  background: #0369a1;
+}
+
+.cf-ai-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   OPEN FINANCE MODAL
+   ========================================================================== */
+.cf-of-modal {
+  max-width: 560px !important;
+}
+
+.cf-of-security-callout {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: rgba(16, 185, 129, 0.10);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+  margin-bottom: 1.25rem;
+}
+
+.cf-of-section {
+  margin-bottom: 1.25rem;
+}
+
+.cf-of-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 0.35rem 0;
+}
+
+.cf-of-section-desc {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin: 0 0 0.75rem 0;
+}
+
+.cf-of-conn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cf-of-conn-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #0f131a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+.cf-of-conn-icon-box {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cf-of-conn-info {
+  flex: 1;
+}
+
+.cf-of-conn-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  display: block;
+}
+
+.cf-of-conn-sub {
+  font-size: 0.70rem;
+  color: #94a3b8;
+}
+
+.cf-of-conn-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #10b981;
+}
+
+.cf-of-bank-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+
+.cf-of-bank-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #0f131a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  font-size: 0.80rem;
+  font-weight: 600;
+}
+
+.cf-of-bank-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.cf-of-bank-btn.connected {
+  opacity: 0.55;
+  cursor: default;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.cf-of-bank-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cf-of-bank-label {
+  flex: 1;
+  text-align: left;
+}
+
+.cf-of-bank-status-text {
+  font-size: 0.65rem;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.cf-of-bank-plus {
+  color: #94a3b8;
+}
+
+/* ==========================================================================
+   CREDIT CARD DRILL-DOWN STYLES
+   ========================================================================== */
+.cf-card-drilldown-wrapper {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.cf-card-count-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.18);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.cf-cards-drilldown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  animation: cfFadeIn 0.15s ease-out;
+}
+
+.cf-subcard-item {
+  background: #141923;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.cf-subcard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.cf-subcard-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cf-subcard-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ffffff;
+  display: block;
+}
+
+.cf-subcard-inst {
+  font-size: 0.68rem;
+  color: #94a3b8;
+}
+
+.cf-subcard-val {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f43f5e;
+}
+
+.cf-subcard-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 0.45rem;
+}
+
+.cf-subcard-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #f43f5e);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.cf-subcard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: #94a3b8;
+}
+
+.cf-subcard-dates {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #64748b;
+}
+
+/* Animations */
+@keyframes cfFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cfScaleUp {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes cfSlideLeft {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.cf-spin {
+  animation: cfRotate 1s linear infinite;
+}
+
+@keyframes cfRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+
 
 
 
