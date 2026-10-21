@@ -83,14 +83,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const creditLimit = profile.creditCardLimit ?? 5000;
   const creditUsagePct = creditLimit > 0 ? Math.min(100, Math.round((totalCardInvoice / creditLimit) * 100)) : 0;
 
-  // Total debt calculation
-  const calculatedDebt = debts
-    .filter((d) => d.status === 'active')
-    .reduce((sum, d) => sum + (d.principalAmount - d.paidAmount), 0);
-  const totalDebt = calculatedDebt;
+  // Resolve list of active cards (either from Open Finance if present, or fallback card from profile + local invoice)
+  const hasOpenFinanceCards = Boolean(creditCardsSummary?.cards && creditCardsSummary.cards.length > 0);
 
+  const fallbackCard = {
+    accountId: 'card-default',
+    institutionName: profile.bankName || 'Banco Principal',
+    cardName: 'Cartão Principal',
+    totalLimit: creditLimit,
+    usedLimit: totalCardInvoice,
+    availableLimit: Math.max(0, creditLimit - totalCardInvoice),
+    usagePercent: creditUsagePct,
+    closingDay: 15,
+    dueDay: 22,
+    color: '#10b981',
+  };
+
+  const cardsList = hasOpenFinanceCards ? creditCardsSummary!.cards : [fallbackCard];
+
+  // Consolidated Credit Card Metrics (all cards limits and debts summed)
+  const totalCardsLimit = cardsList.reduce((sum, c) => sum + (Number(c.totalLimit) || 0), 0);
+  const totalCardsUsed = cardsList.reduce((sum, c) => sum + (Number(c.usedLimit) || 0), 0);
+  const totalCardsAvailable = Math.max(0, totalCardsLimit - totalCardsUsed);
+  const consolidatedCardUsagePct = totalCardsLimit > 0 ? Math.min(100, Math.round((totalCardsUsed / totalCardsLimit) * 100)) : 0;
+
+  // Active non-credit-card debts (loans, personal financing, installment obligations)
+  const activeDebtsExcludingCards = debts
+    .filter((d) => d.status === 'active' && d.category !== 'cartao_credito')
+    .reduce((sum, d) => sum + (d.principalAmount - d.paidAmount), 0);
+
+  // Total debt calculation: all non-card debts + all credit cards used amounts
+  const totalDebt = activeDebtsExcludingCards + totalCardsUsed;
+
+  // Total debt capacity / ceiling:
+  // Must accommodate the user's total approved credit limits + any safe capacity
   const safeCapacity = profile.maxDebtCapacity || profile.maxAuraCapacity || 0;
-  const debtCap = safeCapacity > 0 ? safeCapacity : (totalDebt > 0 ? totalDebt : 5000);
+  const debtCap = Math.max(safeCapacity, totalCardsLimit, totalDebt > 0 ? totalDebt : 5000);
   const debtUsagePct = debtCap > 0 ? Math.min(100, Math.round((totalDebt / debtCap) * 100)) : 0;
 
   // Consolidated Net Worth
@@ -389,8 +417,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setIsCardsExpanded((prev) => !prev);
                   }
                 }}
-                title="Clique para alternar entre limite consolidado e individual por cartão"
-                aria-label="Cartão de crédito consolidado"
+                title={`Clique para alternar entre limites consolidados e individuais. Disponível total: ${formatCurrency(totalCardsAvailable)}`}
+                aria-label={`Cartões de crédito consolidados: limite total ${formatCurrency(totalCardsLimit)}, usado ${formatCurrency(totalCardsUsed)}`}
               >
                 <div className="cf-acc-icon-box cf-icon-card">
                   <CreditCard size={20} aria-hidden="true" />
@@ -398,22 +426,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="cf-acc-info">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <span className="cf-acc-name">Cartões de crédito</span>
-                    {creditCardsSummary?.cards && creditCardsSummary.cards.length > 0 && (
+                    {cardsList.length > 1 && (
                       <span className="cf-card-count-badge">
-                        {creditCardsSummary.cards.length} cartões
+                        {cardsList.length} cartões
                       </span>
                     )}
                   </div>
                   <span className="cf-acc-sub">
-                    {creditCardsSummary 
-                      ? `Limite usado em ${creditCardsSummary.consolidated.usagePercent}% de ${formatCurrency(creditCardsSummary.consolidated.totalLimit)}`
-                      : `Limite usado em ${creditUsagePct}%`
+                    {totalCardsLimit > 0
+                      ? `Limite usado em ${consolidatedCardUsagePct}% de ${formatCurrency(totalCardsLimit)}`
+                      : `Limite usado em ${consolidatedCardUsagePct}%`
                     }
                   </span>
                 </div>
                 <div className="cf-acc-right">
                   <span className="cf-acc-val mono-number">
-                    -{formatCurrency(creditCardsSummary ? creditCardsSummary.consolidated.totalUsed : totalCardInvoice)}
+                    -{formatCurrency(totalCardsUsed)}
                   </span>
                   {isCardsExpanded ? (
                     <ChevronUp size={16} className="cf-acc-chevron" aria-hidden="true" />
@@ -426,20 +454,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Expandable Drill-down Sub-cards */}
               {isCardsExpanded && (
                 <div className="cf-cards-drilldown-list">
-                  {(creditCardsSummary?.cards && creditCardsSummary.cards.length > 0 ? creditCardsSummary.cards : [
-                    {
-                      accountId: 'card-default',
-                      institutionName: profile.bankName || 'Banco Principal',
-                      cardName: 'Cartão Principal',
-                      totalLimit: creditLimit,
-                      usedLimit: totalCardInvoice,
-                      availableLimit: Math.max(0, creditLimit - totalCardInvoice),
-                      usagePercent: creditUsagePct,
-                      closingDay: 15,
-                      dueDay: 22,
-                      color: '#10b981',
-                    }
-                  ]).map((card) => (
+                  {cardsList.map((card) => (
                     <div key={card.accountId} className="cf-subcard-item">
                       <div className="cf-subcard-header">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

@@ -394,11 +394,36 @@ export const App: React.FC = () => {
 
   const activeTotalBalance = consolidatedBalances?.consolidatedTotal ?? (currentBank + currentWallet + currentReserve);
 
-  const totalDebt = debts
-    .filter((d) => d.status === 'active')
+  const cardExpenses = transactions
+    .filter((t) => t.account === 'Cartão de Crédito' && (t.type === 'despesa' || t.type === 'ko'))
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const cardDebts = debts
+    .filter((d) => d.category === 'cartao_credito' && d.status === 'active')
     .reduce((sum, d) => sum + (d.principalAmount - d.paidAmount), 0);
 
-  const safeCapacity = profile.maxDebtCapacity || profile.maxAuraCapacity || 10000;
+  const totalCardInvoice = cardExpenses + cardDebts;
+
+  const hasOpenFinanceCards = Boolean(creditCardsSummary?.cards && creditCardsSummary.cards.length > 0);
+  const effectiveCardsUsed = hasOpenFinanceCards
+    ? creditCardsSummary.cards.reduce((sum, c) => sum + (Number(c.usedLimit) || 0), 0)
+    : totalCardInvoice;
+
+  const effectiveCardsLimit = hasOpenFinanceCards
+    ? creditCardsSummary.cards.reduce((sum, c) => sum + (Number(c.totalLimit) || 0), 0)
+    : (profile.creditCardLimit ?? 5000);
+
+  const otherActiveDebts = debts
+    .filter((d) => d.status === 'active' && d.category !== 'cartao_credito')
+    .reduce((sum, d) => sum + (d.principalAmount - d.paidAmount), 0);
+
+  const totalDebt = otherActiveDebts + effectiveCardsUsed;
+
+  const safeCapacity = Math.max(
+    profile.maxDebtCapacity || profile.maxAuraCapacity || 0,
+    effectiveCardsLimit
+  ) || 10000;
+
   const isElevatedDebt = totalDebt > 0 && (totalDebt >= safeCapacity || (safeCapacity > 0 && (totalDebt / safeCapacity) >= 0.7));
 
   // If user is unauthenticated, render isolated authentication page

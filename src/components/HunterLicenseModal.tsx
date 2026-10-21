@@ -318,7 +318,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     <input
                       type="number"
                       step="500"
-                      min="500"
+                      min="0"
                       value={maxDebt}
                       onChange={(e) => setMaxDebt(e.target.value)}
                       required
