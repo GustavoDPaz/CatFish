@@ -60,6 +60,7 @@ async function main() {
   await app.register(openFinanceRoutes, { prefix: '/api/open-finance' });
   await app.register(aiRoutes, { prefix: '/api/ai' });
   await app.register(webhookRoutes, { prefix: '/api/webhooks' });
+  await app.register(webhookRoutes, { prefix: '/webhooks' });
 
   // 6. Connect Database & Start Workers
   await initDb();
