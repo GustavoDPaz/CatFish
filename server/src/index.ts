@@ -51,6 +51,26 @@ async function main() {
     timeWindow: '1 minute',
   });
 
+  // 3.1. Security Headers (Defense-in-Depth)
+  app.addHook('onSend', async (_request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('X-XSS-Protection', '1; mode=block');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+  });
+
+  // 3.2. Centralized Error Handler (Zero Stack Trace Leakage)
+  app.setErrorHandler((error: any, request, reply) => {
+    request.log.error(error);
+    const statusCode = error.statusCode && error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 500;
+    reply.status(statusCode).send({
+      statusCode,
+      error: statusCode === 500 ? 'Internal Server Error' : (error.name || 'Bad Request'),
+      message: statusCode === 500 ? 'Ocorreu um erro interno no servidor.' : error.message,
+    });
+  });
+
   // 4. Health Check
   app.get('/health', async () => {
     return { status: 'healthy', timestamp: new Date().toISOString() };

@@ -4,3 +4,13 @@ dist
 .env.*
 !.env.example
 *.log
+*.pem
+*.key
+*.crt
+*.cer
+*.pfx
+*.p12
+*credentials*
+*secret*
+*token*
+

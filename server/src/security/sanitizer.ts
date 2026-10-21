@@ -65,3 +65,20 @@ export function sanitizeObject<T>(obj: T): T {
 
   return sanitized as T;
 }
+
+/**
+ * Sanitizes and trims user prompt inputs to mitigate Prompt Injection attacks and excessive context lengths.
+ */
+export function sanitizePromptInput(input: string, maxLength: number = 800): string {
+  if (!input || typeof input !== 'string') return '';
+  // Strip null bytes and non-printable control characters
+  let cleaned = input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  // Normalize excessive whitespaces
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  // Enforce maximum length limit
+  if (cleaned.length > maxLength) {
+    cleaned = cleaned.slice(0, maxLength);
+  }
+  return cleaned;
+}
+

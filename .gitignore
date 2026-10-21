@@ -16,6 +16,20 @@ dist-ssr
 !.env.example
 !.env.template
 
+# Segredos, Chaves Privadas e Certificados
+**/*.pem
+**/*.key
+**/*.crt
+**/*.cer
+**/*.pfx
+**/*.p12
+**/*credentials*
+**/*secret*
+**/*token*
+**/id_rsa*
+**/id_ecdsa*
+**/id_ed25519*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
