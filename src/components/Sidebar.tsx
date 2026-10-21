@@ -58,8 +58,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   totalBalance,
   totalAura,
-  totalDebt,
-  isRiskMode = false,
+  totalDebt: _totalDebt,
+  isRiskMode: _isRiskMode = false,
   onOpenAiAssistant,
   isAiOpen = false,
   onOpenBalanceBreakdown,
@@ -172,14 +172,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="cf-nav-icon">
               <Bot size={19} className="cf-icon-gemini" />
             </div>
-            {isOpen && (
-              <div className="cf-nav-label-wrapper">
-                <span className="cf-nav-label">Assistente IA</span>
-                <span className="cf-pill-ia">
-                  GEMINI
-                </span>
-              </div>
-            )}
+            {isOpen && <span className="cf-nav-label">Assistente IA</span>}
           </button>
 
           {/* Open Finance */}
@@ -191,14 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="cf-nav-icon">
               <Landmark size={19} />
             </div>
-            {isOpen && (
-              <div className="cf-nav-label-wrapper">
-                <span className="cf-nav-label">Open Finance</span>
-                <span className="cf-pill-open-finance">
-                  MULTI-BANCO
-                </span>
-              </div>
-            )}
+            {isOpen && <span className="cf-nav-label">Open Finance</span>}
           </button>
 
           {/* Dívidas */}
@@ -210,16 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="cf-nav-icon">
               <CreditCard size={19} />
             </div>
-            {isOpen && (
-              <div className="cf-nav-label-wrapper">
-                <span className="cf-nav-label">Dívidas</span>
-                {totalDebt > 0 && (
-                  <span className="cf-pill-critico">
-                    {isRiskMode ? 'CRÍTICO' : 'ATIVO'}
-                  </span>
-                )}
-              </div>
-            )}
+            {isOpen && <span className="cf-nav-label">Dívidas</span>}
           </button>
 
           {/* Lançamentos */}

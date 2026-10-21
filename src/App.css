@@ -1864,23 +1864,6 @@
   transition: color 0.15s ease;
 }
 
-.cf-nav-label-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.cf-pill-critico {
-  border: 1px solid #f43f5e;
-  color: #f43f5e;
-  background: rgba(244, 63, 94, 0.12);
-  font-size: 0.62rem;
-  font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 999px;
-  letter-spacing: 0.03em;
-}
 
 .cf-sidebar-footer {
   margin-top: auto;
