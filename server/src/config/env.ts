@@ -24,7 +24,7 @@ const envSchema = z.object({
 
   // Google Gemini API Key
   GEMINI_API_KEY: z.string().default(''),
-  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  GEMINI_MODEL: z.string().default('gemini-2.0-flash'),
 
   // JWT Secret
   JWT_SECRET: z.string().min(16).default('catfish_super_jwt_secret_dev_key_2026!'),
