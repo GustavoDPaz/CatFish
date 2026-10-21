@@ -66,6 +66,17 @@ export async function initDb(): Promise<boolean> {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS bank_connection_id UUID;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS institution_name VARCHAR(100);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS current_balance NUMERIC(14, 2) DEFAULT 0.00;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS credit_limit NUMERIC(14, 2) DEFAULT 0.00;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS used_limit NUMERIC(14, 2) DEFAULT 0.00;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS available_limit NUMERIC(14, 2) DEFAULT 0.00;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS closing_day INT;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS due_day INT;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#10b981';
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
     `);
 
     client.release();
