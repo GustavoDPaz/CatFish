@@ -191,29 +191,12 @@ export const api = {
       if (res.ok) {
         return (await res.json()) as { reply: string; toolsExecuted: string[] };
       }
-    } catch {}
 
-    // Simulated local fallback response
-    await new Promise((r) => setTimeout(r, 700));
-    const lower = message.toLowerCase();
-
-    if (lower.includes('saldo') || lower.includes('quanto tenho') || lower.includes('disponível')) {
-      return {
-        reply: `Seu **saldo consolidado disponível** hoje é de **R$ 4.200,00** somando suas contas correntes no **Itaú** (R$ 2.450,00) e **Nubank** (R$ 1.750,00).\n\nTodas as contas estão ativas e sincronizadas via Open Finance.`,
-        toolsExecuted: ['get_consolidated_and_individual_balances'],
-      };
+      const errData = await res.json().catch(() => null);
+      throw new Error(errData?.error || `Erro HTTP ${res.status}: ${res.statusText}`);
+    } catch (err: any) {
+      console.error('[OpenFinanceApi.sendChatMessage] Erro ao comunicar com API de IA:', err);
+      throw err;
     }
-
-    if (lower.includes('cartão') || lower.includes('limite') || lower.includes('fatura')) {
-      return {
-        reply: `Analisando seus cartões conectados:\n\n• **Limite Total Consolidado:** R$ 25.000,00\n• **Total Utilizado:** R$ 5.970,50 (24% de uso)\n• **Disponível:** R$ 19.029,50\n\n**Detalhamento:**\n- **Itaú Visa Infinite:** Fatura em R$ 3.820,50 (vencimento dia 25)\n- **Nubank Ultravioleta:** Fatura em R$ 2.150,00 (vencimento dia 12)`,
-        toolsExecuted: ['get_credit_cards_limits_summary'],
-      };
-    }
-
-    return {
-      reply: `Olá! Sou o **CatFish AI**, seu assistente com inteligência conectada ao Open Finance Brasil.\n\nPosso analisar seu saldo consolidado, limites de cartão, faturas a vencer ou te ajudar a cumprir seus tetos de gastos. Como posso te ajudar hoje?`,
-      toolsExecuted: [],
-    };
   },
 };
