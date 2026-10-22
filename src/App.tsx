@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
@@ -166,6 +166,15 @@ export const App: React.FC = () => {
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
+
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll to top on tab change so headers and metrics are never clipped
+  useEffect(() => {
+    if (viewportRef.current) {
+      viewportRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   // Sync with audioManager
   useEffect(() => {
@@ -473,7 +482,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Viewport */}
-      <div className="app-main-viewport">
+      <div className="app-main-viewport" ref={viewportRef}>
         {/* Main Views */}
         <main className="main-content">
         {activeTab === 'dashboard' && (
