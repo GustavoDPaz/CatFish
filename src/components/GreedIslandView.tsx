@@ -410,7 +410,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+        <div className="cf-cards-grid">
           {cards.map((card) => {
             const hasAmounts = (card.targetAmount && card.targetAmount > 0);
             const current = card.currentAmount || 0;
@@ -420,33 +420,28 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
             return (
               <div 
                 key={card.id} 
-                className="clean-card" 
+                className="cf-goal-card" 
                 style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '0.85rem',
-                  position: 'relative',
                   border: card.unlocked ? '1px solid var(--color-success-border)' : '1px solid var(--border-color)',
-                  transition: 'all 0.2s ease',
                 }}
               >
                 {/* Card Top Row: Number, Rank & Actions */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span className="mono-number" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-primary)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span className="mono-number" style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-primary)' }}>
                       Nº {card.cardNo}
                     </span>
-                    <span className="badge" style={{ background: 'var(--bg-subtle)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: '0.65rem' }}>
+                    <span className="badge" style={{ background: 'var(--bg-subtle)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: '0.62rem', padding: '0.15rem 0.45rem' }}>
                       {card.rank}
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  <div style={{ display: 'flex', gap: '0.2rem' }}>
                     <button 
                       className="btn btn-ghost btn-sm" 
                       onClick={() => handleOpenEditModal(card)}
                       title="Editar meta e foto"
-                      style={{ padding: '0.25rem 0.4rem' }}
+                      style={{ padding: '0.2rem 0.35rem' }}
                     >
                       <Edit2 size={13} />
                     </button>
@@ -454,7 +449,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                       className="btn btn-ghost btn-sm" 
                       onClick={() => setCardToDelete(card)}
                       title="Excluir meta"
-                      style={{ padding: '0.25rem 0.4rem', color: 'var(--color-danger)' }}
+                      style={{ padding: '0.2rem 0.35rem', color: 'var(--color-danger)' }}
                     >
                       <Trash2 size={13} />
                     </button>
@@ -464,40 +459,26 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                 {/* Photo / Image Container */}
                 <div 
                   onClick={() => handleOpenEditModal(card)}
-                  style={{ 
-                    height: '130px', 
-                    background: 'var(--bg-subtle)', 
-                    border: '1px solid var(--border-color)', 
-                    borderRadius: 'var(--radius-sm)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                    position: 'relative',
-                    cursor: 'pointer',
-                  }}
+                  className="cf-goal-img-box"
                   title="Clique para editar ou alterar a foto"
                 >
                   <img 
                     src={getCardDisplayImage(card)} 
                     alt={card.name} 
+                    className="cf-goal-img"
                     style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      objectFit: 'cover',
                       filter: card.unlocked ? 'none' : 'grayscale(30%)',
-                      transition: 'transform 0.2s ease',
                     }} 
                   />
 
                   {/* Status Overlay Badge */}
-                  <div style={{ position: 'absolute', bottom: '0.4rem', right: '0.4rem' }}>
+                  <div style={{ position: 'absolute', bottom: '0.35rem', right: '0.35rem' }}>
                     {card.unlocked ? (
-                      <span className="badge badge-success badge-receita" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
-                        <CheckCircle2 size={11} /> Conquistada
+                      <span className="badge badge-success badge-receita" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.62rem', padding: '0.2rem 0.45rem' }}>
+                        <CheckCircle2 size={10} /> Conquistada
                       </span>
                     ) : (
-                      <span className="badge" style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '0.65rem' }}>
+                      <span className="badge" style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)', color: '#fff', fontSize: '0.62rem', padding: '0.2rem 0.45rem' }}>
                         {percent}%
                       </span>
                     )}
@@ -506,21 +487,21 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
 
                 {/* Title & Description */}
                 <div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.2rem', color: 'var(--text-main)' }}>{card.name}</h4>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>{card.description}</p>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.15rem', color: 'var(--text-main)', letterSpacing: '-0.01em' }}>{card.name}</h4>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.35, margin: 0 }}>{card.description}</p>
                 </div>
 
                 {/* Financial Progress if Target Amount set */}
                 {hasAmounts && (
-                  <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xs)', padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                  <div className="cf-goal-progress-box">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem' }}>
                       <span style={{ color: 'var(--text-dim)' }}>Acumulado:</span>
                       <strong className="mono-number" style={{ color: 'var(--color-primary)' }}>
                         {formatCurrency(current)} / {formatCurrency(target)}
                       </strong>
                     </div>
 
-                    <div className="clean-track" style={{ height: '6px' }}>
+                    <div className="clean-track" style={{ height: '5px' }}>
                       <div 
                         className="clean-bar" 
                         style={{ 
@@ -530,13 +511,13 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                       ></div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{percent}% atingido</span>
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.15rem' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>{percent}% atingido</span>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
                         <button 
                           className="btn btn-outline btn-sm" 
                           onClick={() => handleOpenContributionModal(card, 'add')}
-                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+                          style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}
                           title="Adicionar aporte à meta"
                         >
                           + Aporte
@@ -545,7 +526,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                           <button 
                             className="btn btn-ghost btn-sm" 
                             onClick={() => handleOpenContributionModal(card, 'withdraw')}
-                            style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', color: 'var(--color-danger)' }}
+                            style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', color: 'var(--color-danger)' }}
                             title="Retirar ou resgatar valor desta meta"
                           >
                             - Retirar
@@ -557,36 +538,26 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                 )}
 
                 {/* Objective Text */}
-                <div style={{ background: 'var(--bg-subtle)', padding: '0.5rem 0.65rem', borderRadius: 'var(--radius-xs)', fontSize: '0.75rem', marginTop: 'auto' }}>
-                  <span style={{ fontWeight: 600, color: 'var(--text-dim)', fontSize: '0.7rem', display: 'block' }}>
+                <div className="cf-goal-objective-box">
+                  <span style={{ fontWeight: 600, color: 'var(--text-dim)', fontSize: '0.66rem', display: 'block' }}>
                     Objetivo:
                   </span>
-                  <p style={{ color: 'var(--text-main)', fontWeight: 500, margin: '0.1rem 0' }}>{card.objective}</p>
+                  <p style={{ color: 'var(--text-main)', fontWeight: 500, margin: '0.1rem 0', fontSize: '0.74rem' }}>{card.objective}</p>
                 </div>
 
                 {/* Toggle Status Footer */}
                 <button
                   type="button"
                   onClick={() => handleToggleUnlocked(card)}
+                  className="cf-goal-status-btn"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.4rem',
-                    padding: '0.5rem',
-                    borderRadius: 'var(--radius-xs)',
-                    border: '1px solid var(--border-color)',
                     background: card.unlocked ? 'var(--color-success-subtle)' : 'var(--bg-subtle)',
                     color: card.unlocked ? 'var(--color-success)' : 'var(--text-muted)',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
                   }}
                 >
                   {card.unlocked ? (
                     <>
-                      <CheckCircle2 size={14} />
+                      <CheckCircle2 size={13} />
                       <span>Meta Conquistada (Clique para alterar)</span>
                     </>
                   ) : (
