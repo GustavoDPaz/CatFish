@@ -162,64 +162,68 @@ export const EnRadarView: React.FC<EnRadarViewProps> = ({
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
-            {budgets.map((b) => {
-              const spent = spentMap[b.category] || 0;
-              const ratio = b.limit > 0 ? (spent / b.limit) * 100 : 0;
-              const isOver = spent > b.limit;
-              const isWarning = ratio >= 80 && !isOver;
+        <div className="cf-cards-grid">
+          {budgets.map((b) => {
+            const spent = spentMap[b.category] || 0;
+            const ratio = b.limit > 0 ? (spent / b.limit) * 100 : 0;
+            const isOver = spent > b.limit;
+            const isWarning = ratio >= 80 && !isOver;
 
-              return (
-                <div key={b.category} className="cf-account-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.85rem', padding: '1.25rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>{b.category}</h4>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }} className="mono-number">
-                        {ratio.toFixed(0)}% utilizado
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.35rem' }}>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => handleStartEdit(b)}
-                        title="Editar Limite"
-                        style={{ padding: '0.25rem 0.4rem', color: '#64748b' }}
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => setCategoryToDelete(b.category)}
-                        title="Excluir Limite"
-                        style={{ padding: '0.25rem 0.4rem', color: '#dc2626' }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Cyan to Emerald Gradient Progress Bar */}
-                  <div className="cf-debt-progress-track" style={{ height: '7px' }}>
-                    <div
-                      className="cf-debt-progress-fill"
-                      style={{
-                        width: `${Math.min(100, ratio)}%`,
-                        background: isOver ? '#ef4444' : 'linear-gradient(90deg, #06b6d4, #10b981)',
-                      }}
-                    />
-                  </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+            return (
+              <div key={b.category} className="cf-budget-card">
+                {/* Header: Category Name + % + Edit/Delete */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block' }}>Gasto</span>
-                    <span className="mono-number" style={{ fontWeight: 700, color: isOver ? 'var(--color-danger)' : 'var(--text-main)' }}>
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 700, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em' }}>
+                      {b.category}
+                    </h4>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }} className="mono-number">
+                      {ratio.toFixed(0)}% utilizado
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.2rem' }}>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleStartEdit(b)}
+                      title="Editar Limite"
+                      style={{ padding: '0.2rem 0.35rem', color: '#64748b' }}
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => setCategoryToDelete(b.category)}
+                      title="Excluir Limite"
+                      style={{ padding: '0.2rem 0.35rem', color: '#dc2626' }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cyan to Emerald Gradient Progress Bar */}
+                <div className="cf-debt-progress-track" style={{ height: '6px', margin: '0.1rem 0' }}>
+                  <div
+                    className="cf-debt-progress-fill"
+                    style={{
+                      width: `${Math.min(100, ratio)}%`,
+                      background: isOver ? '#ef4444' : 'linear-gradient(90deg, #06b6d4, #10b981)',
+                    }}
+                  />
+                </div>
+
+                {/* Values row: Gasto vs Teto Máximo */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '0.8rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Gasto</span>
+                    <span className="mono-number" style={{ fontWeight: 700, fontSize: '0.88rem', color: isOver ? 'var(--color-danger)' : 'var(--text-main)' }}>
                       {formatCurrency(spent)}
                     </span>
                   </div>
 
                   <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block' }}>Teto Máximo</span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Teto Máximo</span>
                     {editingCategory === b.category ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                         <input
@@ -227,7 +231,7 @@ export const EnRadarView: React.FC<EnRadarViewProps> = ({
                           value={editLimitVal}
                           onChange={(e) => setEditLimitVal(e.target.value)}
                           className="cf-input mono-number"
-                          style={{ width: '80px', padding: '0.2rem 0.4rem', fontSize: '0.8rem' }}
+                          style={{ width: '80px', padding: '0.2rem 0.4rem', fontSize: '0.78rem' }}
                           autoFocus
                         />
                         <button className="btn btn-primary btn-sm" onClick={() => handleSaveEdit(b.category)} style={{ padding: '0.2rem 0.4rem' }}>
@@ -235,25 +239,26 @@ export const EnRadarView: React.FC<EnRadarViewProps> = ({
                         </button>
                       </div>
                     ) : (
-                      <span className="mono-number" style={{ fontWeight: 700 }}>
+                      <span className="mono-number" style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)' }}>
                         {formatCurrency(b.limit)}
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div style={{ fontSize: '0.75rem', fontWeight: 500, paddingTop: '0.3rem', borderTop: '1px solid var(--border-color)' }}>
+                {/* Status Badge */}
+                <div style={{ marginTop: '0.15rem' }}>
                   {isOver ? (
-                    <span style={{ color: 'var(--color-danger)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <AlertCircle size={13} /> Limite ultrapassado em {formatCurrency(spent - b.limit)}
+                    <span className="cf-budget-status-pill" style={{ background: 'var(--color-danger-subtle)', color: 'var(--color-danger)', border: '1px solid var(--color-danger-border)' }}>
+                      <AlertCircle size={12} /> Limite ultrapassado em {formatCurrency(spent - b.limit)}
                     </span>
                   ) : isWarning ? (
-                    <span style={{ color: 'var(--color-warning)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <AlertCircle size={13} /> Atenção: Próximo ao limite
+                    <span className="cf-budget-status-pill" style={{ background: 'var(--color-warning-subtle)', color: 'var(--color-warning)', border: '1px solid var(--color-warning-border)' }}>
+                      <AlertCircle size={12} /> Atenção: Próximo ao limite
                     </span>
                   ) : (
-                    <span style={{ color: 'var(--color-success)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <CheckCircle size={13} /> Dentro do planejado
+                    <span className="cf-budget-status-pill" style={{ background: 'var(--color-success-subtle)', color: 'var(--color-success)', border: '1px solid var(--color-success-border)' }}>
+                      <CheckCircle size={12} /> Dentro do planejado
                     </span>
                   )}
                 </div>
