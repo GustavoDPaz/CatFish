@@ -4,20 +4,63 @@ import { OpenFinanceService } from './openFinance.js';
 import { query, isDbLive } from '../db.js';
 import { sanitizeObject } from '../security/sanitizer.js';
 
-// Initialize Google Gen AI client if API Key is configured
-const aiClient = env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: env.GEMINI_API_KEY }) : null;
+// Helper to obtain GoogleGenAI client dynamically
+const getAiClient = (): GoogleGenAI | null => {
+  const key = env.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  if (!key || key.trim() === '' || key.includes('your_gemini')) {
+    return null;
+  }
+  return new GoogleGenAI({ apiKey: key.trim() });
+};
 
-// System instruction enforcing AppSec privacy and financial assistant persona
-const SYSTEM_INSTRUCTION = `Você é o CatFish AI, o assistente inteligente de finanças pessoais do aplicativo CatFish.
-Sua missão é ajudar o usuário com clareza, transparência e insights práticos sobre saldo consolidado, limites de cartão de crédito, extrato bancário, teto de gastos e metas financeiras.
+/**
+ * Builds a dynamic, privacy-conscious system instruction injecting real-time financial context
+ */
+const buildSystemInstruction = async (userId: string): Promise<string> => {
+  let financialContext = '';
+  try {
+    const [balances, cards] = await Promise.all([
+      OpenFinanceService.getConsolidatedBalances(userId),
+      OpenFinanceService.getCreditCardsSummary(userId),
+    ]);
 
-Diretrizes Críticas:
-1. Responda em Português do Brasil com tom consultivo, empático e objetivo.
-2. Quando a pergunta envolver saldo, limites de cartão, faturas, lançamentos ou gastos, UTILIZE SEMPRE as ferramentas de Function Calling disponíveis para obter dados reais e atualizados do usuário.
-3. Se o usuário pedir para registrar, adicionar ou cadastrar uma despesa/receita, UTILIZE a ferramenta 'create_transaction'.
-4. Não invente números ou transações. Se a ferramenta retornar vazio, informe gentilmente o usuário.
-5. NUNCA exponha tokens, hashes, identificadores internos de banco ou senhas.
-6. Formate valores monetários no padrão brasileiro (ex: R$ 1.250,50).`;
+    const accountsList = balances.accounts.length > 0
+      ? balances.accounts.map((a) => `• ${a.institutionName} (${a.accountName}): R$ ${a.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`).join('\n')
+      : '• Conta Corrente: R$ 4.200,00';
+
+    const cardsList = cards.cards.length > 0
+      ? cards.cards.map((c) => `• ${c.cardName} (${c.institutionName}): Limite R$ ${c.totalLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, Fatura Atual R$ ${c.usedLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, Disponível R$ ${c.availableLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, Vencimento dia ${c.dueDay}`).join('\n')
+      : '• Cartão Principal: Limite R$ 5.000,00, Usado R$ 1.200,00, Disponível R$ 3.800,00';
+
+    financialContext = `
+DADOS FINANCEIROS REAIS DO USUÁRIO (Open Finance em tempo real):
+- Saldo Consolidado em Contas: R$ ${balances.consolidatedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Contas Conectadas:
+${accountsList}
+
+- Cartões de Crédito:
+Limite Consolidado: R$ ${cards.consolidated.totalLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Total de Faturas: R$ ${cards.consolidated.totalUsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Disponível Geral: R$ ${cards.consolidated.totalAvailable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Detalhamento dos Cartões:
+${cardsList}
+`;
+  } catch (err) {
+    console.warn('[GeminiAgent] Aviso: não foi possível carregar o resumo financeiro inicial:', err);
+  }
+
+  return `Você é o CatFish AI, o copiloto financeiro inteligente do aplicativo CatFish, integrado ao Open Finance Brasil.
+Sua missão é responder com empatia, inteligência e clareza sobre finanças, saldo, faturas de cartão, extrato e controle financeiro.
+
+${financialContext}
+
+Diretrizes de Comunicação e Formatação:
+1. Responda SEMPRE em Português do Brasil de maneira natural, humana, cordial e consultiva.
+2. Utilize formatação Markdown limpa: destaque valores monetários (R$) e nomes de bancos/categorias com negrito (**exemplo**), e use marcadores (•) para listar itens.
+3. Se o usuário fizer uma saudação informal (ex: "oi", "olá", "tudo bem?", "boa tarde"), responda de forma agradável e pergunte como pode auxiliá-lo com as finanças hoje, destacando que você pode consultar saldos, verificar faturas ou registrar novos lançamentos.
+4. Quando perguntarem sobre saldo, cartões ou despesas, use os dados reais do contexto acima. Se o usuário solicitar extrato ou transações específicas por período, utilize a ferramenta 'get_transactions_by_period'.
+5. Se o usuário pedir para registrar, anotar ou adicionar um gasto ou receita (ex: "adicione gasto de 100 no mercado"), execute a ferramenta 'create_transaction'.
+6. NUNCA invente números ou transações. Se algo não estiver disponível, informe com gentileza.
+7. NUNCA exponha credenciais, hashes, tokens de acesso ou senhas.`;
+};
 
 // Function Declarations
 const toolsDefinition = [
@@ -82,7 +125,7 @@ const toolsDefinition = [
 ];
 
 export interface ChatMessage {
-  role: 'user' | 'model' | 'system';
+  role: 'user' | 'model' | 'assistant' | 'system';
   content: string;
 }
 
@@ -258,23 +301,53 @@ export class GeminiAgentService {
   ): Promise<{ text: string; toolsExecuted: string[] }> {
     const executedTools: string[] = [];
 
-    // Fallback if GEMINI_API_KEY is not configured
+    const aiClient = getAiClient();
     if (!aiClient) {
-      console.warn('[GeminiAgent] GEMINI_API_KEY ausente. Gerando resposta contextual simulada.');
-      return this.generateSimulatedResponse(userId, message);
+      console.warn('[GeminiAgent] GEMINI_API_KEY ausente ou inválida no ambiente do servidor.');
+      return {
+        text: '⚠️ **Chave da API do Google Gemini não configurada.**\n\nPara conversar com o assistente inteligente e obter análises reais, insira sua `GEMINI_API_KEY` válida no arquivo `server/.env` e reinicie o container.',
+        toolsExecuted: [],
+      };
     }
 
     try {
-      // Build conversation contents
-      const contents: any[] = history.map((m) => ({
-        role: (m.role as string) === 'assistant' ? 'model' : m.role,
-        parts: [{ text: m.content }],
-      }));
+      // 1. Build dynamic system instruction with user's real-time Open Finance context
+      const systemInstruction = await buildSystemInstruction(userId);
 
-      contents.push({
-        role: 'user',
-        parts: [{ text: message }],
-      });
+      // 2. Build conversation contents conforming strictly to Gemini multiturn requirements:
+      // - Must start with 'user' role
+      // - Must alternate between 'user' and 'model'
+      const contents: any[] = [];
+
+      for (const m of history) {
+        const role = m.role === 'assistant' || m.role === 'model' ? 'model' : 'user';
+
+        // Skip leading model message (like initial welcome greeting) so conversation starts with user
+        if (contents.length === 0 && role === 'model') {
+          continue;
+        }
+
+        const last = contents[contents.length - 1];
+        if (last && last.role === role) {
+          last.parts[0].text += `\n${m.content}`;
+        } else {
+          contents.push({
+            role,
+            parts: [{ text: m.content }],
+          });
+        }
+      }
+
+      // Append current user message
+      const last = contents[contents.length - 1];
+      if (last && last.role === 'user') {
+        last.parts[0].text += `\n${message}`;
+      } else {
+        contents.push({
+          role: 'user',
+          parts: [{ text: message }],
+        });
+      }
 
       const modelToUse = env.GEMINI_MODEL || 'gemini-2.0-flash';
 
@@ -283,7 +356,7 @@ export class GeminiAgentService {
           model,
           contents,
           config: {
-            systemInstruction: SYSTEM_INSTRUCTION,
+            systemInstruction,
             tools: toolsDefinition as any,
             temperature: 0.3,
           },
@@ -296,7 +369,7 @@ export class GeminiAgentService {
       try {
         response = await callGemini(activeModel);
       } catch (firstErr: any) {
-        console.warn(`[GeminiAgent] Erro no modelo ${activeModel} (${firstErr?.message}). Tentando fallback para gemini-1.5-flash...`);
+        console.warn(`[GeminiAgent] Falha no modelo ${activeModel} (${firstErr?.message}). Tentando fallback para gemini-1.5-flash...`);
         activeModel = 'gemini-1.5-flash';
         response = await callGemini(activeModel);
       }
@@ -311,9 +384,9 @@ export class GeminiAgentService {
         if (!name) break;
         executedTools.push(name);
 
-        console.log(`[GeminiAgent] Chamada de função: ${name}(${JSON.stringify(args)})`);
+        console.log(`[GeminiAgent] Executando tool solicitada pela IA: ${name}(${JSON.stringify(args)})`);
 
-        // Execute local tool
+        // Execute local tool scoped strictly to userId
         const toolResult = await this.executeLocalTool(name, args as Record<string, any>, userId);
 
         // Append assistant tool call and tool result to conversation
@@ -339,124 +412,26 @@ export class GeminiAgentService {
       }
 
       return {
-        text: response.text || 'Lançamento processado com sucesso.',
+        text: response.text || 'Entendido. Ação processada com sucesso.',
         toolsExecuted: executedTools,
       };
     } catch (err: any) {
-      console.error('[GeminiAgent] Erro na API do Gemini:', err?.message || err);
-      return this.generateSimulatedResponse(userId, message);
-    }
-  }
+      console.error('[GeminiAgent] Erro na API do Gemini:', err);
+      const errMsg = err?.message || String(err);
 
-  /**
-   * Generates a context-aware simulated response when API key is missing or quota is reached
-   */
-  private static async generateSimulatedResponse(
-    userId: string,
-    message: string
-  ): Promise<{ text: string; toolsExecuted: string[] }> {
-    const lower = message.toLowerCase();
-    const executed: string[] = [];
-
-    // 1. Transaction creation (resilient to typos like "lançamneto", "adicion", "inser", "gastei", etc.)
-    if (/lan[cç]am[en]{2,5}to|adicion|inser|registra|nov[oa] (lan[cç]amento|gasto|despesa|receita)|gastei|recebi/i.test(lower)) {
-      executed.push('create_transaction');
-      const amountMatch = message.match(/(\d+(?:[.,]\d+)?)/);
-      const amount = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : 1000;
-      const isIncome = /recebi|receita|ganhei|sal[aá]rio|dep[oó]sito|rendimento/i.test(lower);
-      const txType = isIncome ? 'income' : 'expense';
-
-      let description = 'Lançamento via Assistente';
-      if (/sal[aá]rio/i.test(lower)) description = 'Salário';
-      else if (/aluguel/i.test(lower)) description = 'Aluguel';
-      else if (/mercado|supermercado/i.test(lower)) description = 'Supermercado';
-      else if (/uber|taxi|transporte/i.test(lower)) description = 'Transporte';
-      else if (/restaurante|ifood|lanche|comida/i.test(lower)) description = 'Alimentação';
-
-      await this.executeLocalTool('create_transaction', {
-        description,
-        amount,
-        type: txType,
-        accountName: 'Conta Corrente',
-      }, userId);
-
-      return {
-        text: `✅ **Lançamento adicionado com sucesso!**\n\n• **Descrição:** ${description}\n• **Valor:** ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n• **Tipo:** ${isIncome ? 'Receita (+)' : 'Despesa (-)'}\n• **Conta:** Conta Corrente\n\nO lançamento foi registrado no seu extrato e contabilizado no saldo da sua conta!`,
-        toolsExecuted: executed,
-      };
-    }
-
-    // 2. Balances
-    if (lower.includes('saldo') || lower.includes('disponível') || lower.includes('contas')) {
-      executed.push('get_consolidated_and_individual_balances');
-      try {
-        const balances = await OpenFinanceService.getConsolidatedBalances(userId);
-        const accountsList = balances.accounts.length > 0
-          ? balances.accounts.map((a) => `• **${a.institutionName}:** R$ ${a.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`).join('\n')
-          : '• **Conta Corrente:** R$ 4.200,00';
-
-        return {
-          text: `Seu **saldo consolidado disponível** hoje é de **R$ ${balances.consolidatedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}**.\n\nDetalhamento por instituição:\n${accountsList}\n\nPosso te ajudar a projetar despesas ou categorizar lançamentos?`,
-          toolsExecuted: executed,
-        };
-      } catch {
-        return {
-          text: `Seu **saldo consolidado disponível** hoje é de **R$ 4.200,00**.\n• **Conta Corrente:** R$ 4.200,00\n\nTodas as contas estão ativas e sob controle!`,
-          toolsExecuted: executed,
-        };
+      let userFriendlyError = 'Ocorreu um erro ao comunicar com a inteligência artificial do Google Gemini.';
+      if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
+        userFriendlyError = '❌ **Chave do Gemini inválida:** A `GEMINI_API_KEY` configurada no `server/.env` não é válida. Verifique sua chave no Google AI Studio.';
+      } else if (errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota') || errMsg.includes('429')) {
+        userFriendlyError = '⏳ **Limite de requisições excedido (Quota 429):** A cota da sua chave do Gemini foi temporariamente atingida. Aguarde alguns instantes e tente novamente.';
+      } else {
+        userFriendlyError = `❌ **Falha ao consultar a API do Gemini:** ${errMsg.slice(0, 180)}. Verifique os logs do servidor para mais detalhes.`;
       }
-    }
 
-    // 3. Credit Cards
-    if (lower.includes('cartão') || lower.includes('cartao') || lower.includes('limite') || lower.includes('fatura') || lower.includes('crédito')) {
-      executed.push('get_credit_cards_limits_summary');
-      try {
-        const cards = await OpenFinanceService.getCreditCardsSummary(userId);
-        const cardDetails = cards.cards.length > 0
-          ? cards.cards.map((c) => `• **${c.cardName} (${c.institutionName}):**\n  - Limite Usado: R$ ${c.usedLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n  - Limite Disponível: R$ ${c.availableLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n  - Vencimento: dia ${c.dueDay}`).join('\n')
-          : '• **Cartão Principal:** Limite Usado: R$ 1.200,00 | Disponível: R$ 3.800,00';
-
-        return {
-          text: `Panorama dos seus cartões de crédito:\n\n• **Limite Total Consolidado:** R$ ${cards.consolidated.totalLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n• **Total Utilizado:** R$ ${cards.consolidated.totalUsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${cards.consolidated.usagePercent}% de uso)\n• **Disponível:** R$ ${cards.consolidated.totalAvailable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n**Detalhamento:**\n${cardDetails}`,
-          toolsExecuted: executed,
-        };
-      } catch {
-        return {
-          text: `Panorama dos seus cartões de crédito:\n• **Limite Total:** R$ 5.000,00\n• **Utilizado:** R$ 1.200,00 (24% de uso)\n• **Disponível:** R$ 3.800,00`,
-          toolsExecuted: executed,
-        };
-      }
-    }
-
-    // 4. Expenses / Statement
-    if (lower.includes('gasto') || lower.includes('extrato') || lower.includes('despesa') || lower.includes('onde gastei')) {
-      executed.push('get_transactions_by_period');
       return {
-        text: `Analisando seus lançamentos recentes, suas maiores saídas foram em **Moradia** (R$ 2.200,00) e **Alimentação** (R$ 850,00).\n\nVocê ainda possui **R$ 350,00** dentro do seu teto estipulado para alimentação neste mês. Deseja registrar algum novo gasto agora?`,
-        toolsExecuted: executed,
+        text: userFriendlyError,
+        toolsExecuted: executedTools,
       };
     }
-
-    // 5. Debts
-    if (lower.includes('dívida') || lower.includes('divida') || lower.includes('empréstimo') || lower.includes('juros')) {
-      return {
-        text: `Consultando seus registros de dívidas: suas parcelas estão sob monitoramento no painel de compromissos. Recomendo manter o teto sob controle e priorizar a quitação dos juros mais altos.\n\nDeseja simular o impacto de amortizar alguma dívida?`,
-        toolsExecuted: ['get_spending_limits_and_goals'],
-      };
-    }
-
-    // 6. Goals & Reserves
-    if (lower.includes('meta') || lower.includes('objetivo') || lower.includes('reserva') || lower.includes('guardar')) {
-      return {
-        text: `Suas metas financeiras e Reserva de Emergência estão ativas no CatFish. O ideal é destinar de 10% a 20% das suas entradas mensais para acelerar o cumprimento do seu fundo de segurança antes de novos aportes.`,
-        toolsExecuted: ['get_spending_limits_and_goals'],
-      };
-    }
-
-    // Informative default response
-    return {
-      text: `Entendi sua mensagem: *"**${message}**"*.\n\nComo seu assistente financeiro, posso:\n• **Adicionar lançamentos:** ex: *"adicione um gasto de 100 no mercado"*\n• **Consultar saldos:** ex: *"qual meu saldo disponível?"*\n• **Verificar cartões:** ex: *"quanto tenho de limite no cartão?"*\n• **Checar extrato:** ex: *"onde gastei mais este mês?"*\n\nComo deseja prosseguir?`,
-      toolsExecuted: executed,
-    };
   }
 }
