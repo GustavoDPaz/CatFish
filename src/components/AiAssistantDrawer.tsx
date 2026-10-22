@@ -3,6 +3,142 @@ import type { ChatMessage } from '../types';
 import { api } from '../services/api';
 import { Bot, Send, Sparkles, X, Wrench, RefreshCw, ChevronRight } from 'lucide-react';
 
+const parseInline = (text: string): React.ReactNode => {
+  const tokenRegex = /(`[^`]+`|\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|_[^_]+_)/g;
+  const parts = text.split(tokenRegex);
+
+  return parts.map((part, idx) => {
+    if (!part) return null;
+    if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+      return (
+        <code key={idx} className="cf-ai-code">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    if (part.startsWith('***') && part.endsWith('***') && part.length >= 6) {
+      return (
+        <strong key={idx} className="cf-ai-bold">
+          <em className="cf-ai-italic">{parseInline(part.slice(3, -3))}</em>
+        </strong>
+      );
+    }
+    if (
+      (part.startsWith('**') && part.endsWith('**') && part.length >= 4) ||
+      (part.startsWith('__') && part.endsWith('__') && part.length >= 4)
+    ) {
+      return (
+        <strong key={idx} className="cf-ai-bold">
+          {parseInline(part.slice(2, -2))}
+        </strong>
+      );
+    }
+    if (
+      (part.startsWith('*') && part.endsWith('*') && part.length >= 2) ||
+      (part.startsWith('_') && part.endsWith('_') && part.length >= 2)
+    ) {
+      return (
+        <em key={idx} className="cf-ai-italic">
+          {parseInline(part.slice(1, -1))}
+        </em>
+      );
+    }
+    return part;
+  });
+};
+
+export const MarkdownMessage: React.FC<{ content: string }> = ({ content }) => {
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentList: { type: 'ul' | 'ol'; items: string[] } | null = null;
+  let inCodeBlock = false;
+  let codeBuffer: string[] = [];
+
+  const flushList = () => {
+    if (!currentList) return;
+    const ListTag = currentList.type;
+    const listClass = currentList.type === 'ul' ? 'cf-ai-ul' : 'cf-ai-ol';
+    elements.push(
+      <ListTag key={`list-${elements.length}`} className={listClass}>
+        {currentList.items.map((item, idx) => (
+          <li key={idx} className="cf-ai-li">
+            {parseInline(item)}
+          </li>
+        ))}
+      </ListTag>
+    );
+    currentList = null;
+  };
+
+  const flushCode = () => {
+    if (codeBuffer.length === 0) return;
+    elements.push(
+      <pre key={`code-${elements.length}`} className="cf-ai-pre">
+        <code className="cf-ai-code-block">{codeBuffer.join('\n')}</code>
+      </pre>
+    );
+    codeBuffer = [];
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const trimmed = rawLine.trim();
+
+    if (trimmed.startsWith('```')) {
+      if (inCodeBlock) {
+        flushCode();
+        inCodeBlock = false;
+      } else {
+        flushList();
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBuffer.push(rawLine);
+      continue;
+    }
+
+    if (!trimmed) {
+      flushList();
+      continue;
+    }
+
+    const ulMatch = trimmed.match(/^([•\-*])\s+(.*)$/);
+    if (ulMatch) {
+      if (!currentList || currentList.type !== 'ul') {
+        flushList();
+        currentList = { type: 'ul', items: [] };
+      }
+      currentList.items.push(ulMatch[2]);
+      continue;
+    }
+
+    const olMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+    if (olMatch) {
+      if (!currentList || currentList.type !== 'ol') {
+        flushList();
+        currentList = { type: 'ol', items: [] };
+      }
+      currentList.items.push(olMatch[2]);
+      continue;
+    }
+
+    flushList();
+    elements.push(
+      <p key={`p-${elements.length}`} className="cf-ai-p">
+        {parseInline(rawLine)}
+      </p>
+    );
+  }
+
+  flushList();
+  if (inCodeBlock) flushCode();
+
+  return <div className="cf-ai-rendered-markdown">{elements}</div>;
+};
+
 interface AiAssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -96,14 +232,15 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro na resposta do chat de IA:', err);
+      const errMsg = err?.message || 'Falha ao conectar com o serviço de IA.';
       setMessages((prev) => [
         ...prev,
         {
           id: `msg-err-${Date.now()}`,
           role: 'assistant',
-          content: 'Desculpe, ocorreu uma instabilidade ao conectar com o serviço de IA. Por favor, tente novamente.',
+          content: `❌ **Não foi possível obter resposta da IA:**\n${errMsg}\n\nVerifique se o backend está ativo e sua chave do Gemini configurada.`,
           timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -165,7 +302,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   <Sparkles size={14} className="cf-text-emerald" />
                 </div>
               )}
-              <div className="cf-ai-msg-bubble">
+              <div className={`cf-ai-msg-bubble ${msg.content.startsWith('❌') ? 'cf-ai-bubble-error' : ''}`}>
                 {/* Tools executed pill */}
                 {msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
                   <div className="cf-ai-tools-pill">
@@ -174,15 +311,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   </div>
                 )}
                 <div className="cf-ai-msg-text">
-                  {msg.content.split('\n').map((line, i) => (
-                    <p key={i}>
-                      {line.startsWith('• ') ? (
-                        <span className="cf-bullet-point">{line}</span>
-                      ) : (
-                        line
-                      )}
-                    </p>
-                  ))}
+                  <MarkdownMessage content={msg.content} />
                 </div>
                 <span className="cf-ai-msg-time">{msg.timestamp}</span>
               </div>
