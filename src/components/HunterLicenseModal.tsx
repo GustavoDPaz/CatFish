@@ -1,19 +1,61 @@
 import React, { useState } from 'react';
-import type { UserProfile } from '../types';
-import { X, ShieldCheck, Save, Landmark, Wallet, CreditCard, TrendingUp, User, Volume2, HelpCircle } from 'lucide-react';
+import type { UserProfile, FinancialAccount, AccountType } from '../types';
+import { 
+  X, 
+  ShieldCheck, 
+  Save, 
+  Landmark, 
+  Wallet, 
+  CreditCard, 
+  TrendingUp, 
+  User, 
+  Volume2, 
+  HelpCircle, 
+  Plus, 
+  Trash2, 
+  Edit3, 
+  CheckCircle2, 
+  Info, 
+  Calendar,
+  Sparkles
+} from 'lucide-react';
 
 interface ProfileModalProps {
   profile: UserProfile;
   onSave: (updated: UserProfile) => void;
   onClose: () => void;
   initialTab?: 'financial' | 'profile';
+  accounts: FinancialAccount[];
+  onUpdateAccounts: (accounts: FinancialAccount[]) => void;
 }
+
+const PRESET_BANK_COLORS = [
+  '#820AD1', // Nubank
+  '#FF7A00', // Inter
+  '#EC7000', // Itaú
+  '#CC092F', // Bradesco
+  '#242424', // C6 Bank
+  '#EA1D2C', // Santander
+  '#003882', // BB
+  '#0066B3', // Caixa
+  '#10B981', // Verde / Carteira
+];
+
+const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  checking: 'Conta Corrente',
+  credit_card: 'Cartão de Crédito',
+  emergency_fund: 'Reserva de Emergência',
+  wallet: 'Dinheiro em Mãos',
+  investment: 'Investimentos',
+};
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   profile,
   onSave,
   onClose,
   initialTab = 'financial',
+  accounts,
+  onUpdateAccounts,
 }) => {
   const [activeTab, setActiveTab] = useState<'financial' | 'profile'>(initialTab);
 
@@ -23,30 +65,160 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [affinity, setAffinity] = useState(profile.financialProfile || profile.nenAffinity || 'Planejador');
   const [soundEnabled, setSoundEnabled] = useState(profile.soundEnabled ?? true);
 
-  // Financial data
-  const [bankName, setBankName] = useState(profile.bankName || 'Banco Principal');
-  const [bankBalance, setBankBalance] = useState<number | string>(profile.bankBalance ?? 4200);
-  const [walletBalance, setWalletBalance] = useState<number | string>(profile.walletBalance ?? 1450);
-  const [emergencyFundBalance, setEmergencyFundBalance] = useState<number | string>(profile.emergencyFundBalance ?? 1500);
-  const [creditCardLimit, setCreditCardLimit] = useState<number | string>(profile.creditCardLimit ?? 5000);
-  const [overdraftLimit, setOverdraftLimit] = useState<number | string>(profile.overdraftLimit ?? 1000);
+  // Global Financial Limits
   const [maxDebt, setMaxDebt] = useState<number | string>(profile.maxDebtCapacity ?? profile.maxAuraCapacity ?? 12000);
   const [monthlyIncome, setMonthlyIncome] = useState<number | string>(profile.monthlyIncome ?? 7500);
 
-  const numBank = Number(bankBalance) || 0;
-  const numWallet = Number(walletBalance) || 0;
-  const numEmergency = Number(emergencyFundBalance) || 0;
-  const numCreditCard = Number(creditCardLimit) || 0;
-  const numOverdraft = Number(overdraftLimit) || 0;
+  // Local Accounts List
+  const [accountsList, setAccountsList] = useState<FinancialAccount[]>(accounts || []);
+
+  // Account Form State (for adding or editing)
+  const [isEditingAccount, setIsEditingAccount] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [formAccountName, setFormAccountName] = useState('');
+  const [formInstitution, setFormInstitution] = useState('');
+  const [formType, setFormType] = useState<AccountType>('checking');
+  const [formBalance, setFormBalance] = useState<string>('0');
+  const [formCreditLimit, setFormCreditLimit] = useState<string>('0');
+  const [formClosingDay, setFormClosingDay] = useState<string>('10');
+  const [formDueDay, setFormDueDay] = useState<string>('17');
+  const [formColor, setFormColor] = useState('#820AD1');
+  const [formNotes, setFormNotes] = useState('');
+
   const numMaxDebt = Number(maxDebt) || 0;
   const numIncome = Number(monthlyIncome) || 0;
+
+  // Live totals derived from accounts list
+  const totalCheckingBalance = accountsList
+    .filter((a) => a.type === 'checking')
+    .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+
+  const totalCreditLimit = accountsList
+    .filter((a) => a.type === 'credit_card')
+    .reduce((sum, a) => sum + (Number(a.creditLimit) || 0), 0);
+
+  const totalReserveBalance = accountsList
+    .filter((a) => a.type === 'emergency_fund')
+    .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+
+  const totalWalletBalance = accountsList
+    .filter((a) => a.type === 'wallet')
+    .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  const resetAccountForm = () => {
+    setIsEditingAccount(false);
+    setEditingAccountId(null);
+    setFormAccountName('');
+    setFormInstitution('');
+    setFormType('checking');
+    setFormBalance('0');
+    setFormCreditLimit('0');
+    setFormClosingDay('10');
+    setFormDueDay('17');
+    setFormColor('#820AD1');
+    setFormNotes('');
+  };
+
+  const handleOpenAddAccount = () => {
+    resetAccountForm();
+    setIsEditingAccount(true);
+    setFormAccountName('Conta Corrente Principal');
+    setFormInstitution('Nubank');
+    setFormType('checking');
+    setFormBalance('1000');
+    setFormCreditLimit('0');
+    setFormNotes('Conta para movimentação e transferências diárias.');
+  };
+
+  const handleOpenEditAccount = (acc: FinancialAccount) => {
+    setEditingAccountId(acc.id);
+    setFormAccountName(acc.name);
+    setFormInstitution(acc.institutionName);
+    setFormType(acc.type);
+    setFormBalance(String(acc.balance ?? 0));
+    setFormCreditLimit(String(acc.creditLimit ?? 0));
+    setFormClosingDay(String(acc.closingDay ?? 10));
+    setFormDueDay(String(acc.dueDay ?? 17));
+    setFormColor(acc.color || '#820AD1');
+    setFormNotes(acc.notes || '');
+    setIsEditingAccount(true);
+  };
+
+  const handleSaveAccountForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formAccountName.trim() || !formInstitution.trim()) return;
+
+    const parsedBalance = parseFloat(formBalance) || 0;
+    const parsedCreditLimit = parseFloat(formCreditLimit) || 0;
+    const parsedClosing = parseInt(formClosingDay, 10) || 10;
+    const parsedDue = parseInt(formDueDay, 10) || 17;
+
+    if (editingAccountId) {
+      // Update existing account
+      setAccountsList((prev) =>
+        prev.map((acc) => {
+          if (acc.id === editingAccountId) {
+            return {
+              ...acc,
+              name: formAccountName.trim(),
+              institutionName: formInstitution.trim(),
+              type: formType,
+              balance: parsedBalance,
+              creditLimit: parsedCreditLimit,
+              closingDay: formType === 'credit_card' ? parsedClosing : undefined,
+              dueDay: formType === 'credit_card' ? parsedDue : undefined,
+              color: formColor,
+              notes: formNotes.trim(),
+            };
+          }
+          return acc;
+        })
+      );
+    } else {
+      // Create new account
+      const newAccount: FinancialAccount = {
+        id: `acc-${Date.now()}`,
+        name: formAccountName.trim(),
+        institutionName: formInstitution.trim(),
+        type: formType,
+        balance: parsedBalance,
+        creditLimit: parsedCreditLimit,
+        closingDay: formType === 'credit_card' ? parsedClosing : undefined,
+        dueDay: formType === 'credit_card' ? parsedDue : undefined,
+        color: formColor,
+        notes: formNotes.trim(),
+      };
+      setAccountsList((prev) => [...prev, newAccount]);
+    }
+
+    resetAccountForm();
+  };
+
+  const handleDeleteAccount = (accId: string, accName: string) => {
+    if (accountsList.length <= 1) {
+      alert('Você deve manter pelo menos uma conta cadastrada para contabilização.');
+      return;
+    }
+    if (window.confirm(`Tem certeza de que deseja remover a conta "${accName}"?`)) {
+      setAccountsList((prev) => prev.filter((a) => a.id !== accId));
+      if (editingAccountId === accId) {
+        resetAccountForm();
+      }
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Persist accounts
+    onUpdateAccounts(accountsList);
+
+    // Persist profile
+    const primaryChecking = accountsList.find((a) => a.type === 'checking');
     onSave({
       ...profile,
       name: name.trim() || 'Usuário',
@@ -54,20 +226,37 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       financialProfile: affinity,
       nenAffinity: affinity,
       soundEnabled,
-      bankName: bankName.trim() || 'Banco Principal',
-      bankBalance: numBank,
-      walletBalance: numWallet,
-      emergencyFundBalance: numEmergency,
-      creditCardLimit: numCreditCard,
-      overdraftLimit: numOverdraft,
+      bankName: primaryChecking?.institutionName || profile.bankName || 'Banco Principal',
+      bankBalance: totalCheckingBalance,
+      walletBalance: totalWalletBalance,
+      emergencyFundBalance: totalReserveBalance,
+      creditCardLimit: totalCreditLimit,
       maxDebtCapacity: numMaxDebt,
       maxAuraCapacity: numMaxDebt,
       monthlyIncome: numIncome,
     });
+
     onClose();
   };
 
   const accountId = profile.accountId || profile.hunterId || 'CF-2026-1920';
+
+  const getAccountIcon = (type: AccountType) => {
+    switch (type) {
+      case 'checking':
+        return <Landmark size={18} />;
+      case 'credit_card':
+        return <CreditCard size={18} />;
+      case 'emergency_fund':
+        return <ShieldCheck size={18} />;
+      case 'wallet':
+        return <Wallet size={18} />;
+      case 'investment':
+        return <TrendingUp size={18} />;
+      default:
+        return <Landmark size={18} />;
+    }
+  };
 
   return (
     <div 
@@ -80,12 +269,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       <div 
         className="modal-content profile-edit-modal-content" 
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '600px' }}
+        style={{ maxWidth: '680px' }}
       >
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ShieldCheck size={20} color="var(--color-primary)" aria-hidden="true" />
-            <h3 id="profile-modal-title" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>Editar Perfil & Finanças</h3>
+            <h3 id="profile-modal-title" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
+              Contabilizar • Contas & Limites Manuais
+            </h3>
           </div>
           <button 
             className="btn-close" 
@@ -125,15 +316,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <div className="license-chips-row">
                 <div className="license-chip">
                   <span className="chip-label">Saldo Banco:</span>
-                  <span className="chip-val">{formatCurrency(numBank)}</span>
+                  <span className="chip-val">{formatCurrency(totalCheckingBalance)}</span>
                 </div>
                 <div className="license-chip">
-                  <span className="chip-label">Lim. Cartão:</span>
-                  <span className="chip-val">{formatCurrency(numCreditCard)}</span>
+                  <span className="chip-label">Lim. Cartões:</span>
+                  <span className="chip-val">{formatCurrency(totalCreditLimit)}</span>
                 </div>
                 <div className="license-chip">
                   <span className="chip-label">Reserva:</span>
-                  <span className="chip-val">{formatCurrency(numEmergency)}</span>
+                  <span className="chip-val">{formatCurrency(totalReserveBalance)}</span>
                 </div>
                 <div className="license-chip warning">
                   <span className="chip-label">Teto Dívida:</span>
@@ -152,8 +343,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onClick={() => setActiveTab('financial')}
           >
             <Wallet size={15} />
-            <span>Dados Financeiros & Limites</span>
-            <span className="tab-pill-badge">Contabilizar</span>
+            <span>Contabilizar Contas & Limites</span>
+            <span className="tab-pill-badge">{accountsList.length} contas</span>
           </button>
           <button
             type="button"
@@ -168,110 +359,395 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* Edit Form */}
         <form onSubmit={handleSubmit} style={{ padding: '1rem 1.25rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
-          {/* TAB 1: FINANCIAL DATA & LIMITS */}
+          {/* TAB 1: FINANCIAL DATA & MANUAL ACCOUNTS */}
           {activeTab === 'financial' && (
             <div className="tab-section-content" style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
               <div className="helper-banner">
                 <HelpCircle size={16} color="var(--color-primary)" style={{ flexShrink: 0 }} />
                 <span>
-                  Modifique seus saldos atuais e limites para iniciar a contabilização real do seu patrimônio e fluxo de caixa.
+                  Cadastre e gerencie suas contas manuais, saldos e limites de crédito. Cada conta inserida aqui fica imediatamente disponível para lançamentos, Open Finance e painéis de saldo.
                 </span>
               </div>
 
-              {/* Group 1: Saldos em Contas */}
-              <div className="form-section-group">
-                <div className="form-section-title">
-                  <Landmark size={15} color="var(--color-primary)" />
-                  <span>Saldos Iniciais / Atuais em Contas</span>
+              {/* Contas Cadastradas Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="form-section-title" style={{ margin: 0 }}>
+                  <Landmark size={16} color="var(--color-primary)" />
+                  <span>Contas Manuais para Lançamentos ({accountsList.length})</span>
                 </div>
-
-                <div className="form-grid-2col">
-                  <div className="form-group">
-                    <label>
-                      <span>Saldo Atual no Banco (Conta Corrente)</span>
-                    </label>
-                    <div className="input-currency-wrapper">
-                      <span className="currency-prefix">R$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0,00"
-                        value={bankBalance}
-                        onChange={(e) => setBankBalance(e.target.value)}
-                        required
-                        className="cf-input hunter-input mono-number input-with-prefix"
-                      />
-                    </div>
-                    <span className="input-field-hint">Saldo inicial disponível para movimentação</span>
-                  </div>
-
-                  <div className="form-group">
-                    <label>
-                      <span>Nome do Banco Principal</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Nubank, Itaú, Banco do Brasil..."
-                      value={bankName}
-                      onChange={(e) => setBankName(e.target.value)}
-                      className="cf-input hunter-input"
-                    />
-                    <span className="input-field-hint">Instituição bancária padrão</span>
-                  </div>
-                </div>
-
-                <div className="form-grid-2col" style={{ marginTop: '0.65rem' }}>
-                  <div className="form-group">
-                    <label>
-                      <span>Saldo na Carteira (Dinheiro em Mãos)</span>
-                    </label>
-                    <div className="input-currency-wrapper">
-                      <span className="currency-prefix">R$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0,00"
-                        value={walletBalance}
-                        onChange={(e) => setWalletBalance(e.target.value)}
-                        required
-                        className="cf-input hunter-input mono-number input-with-prefix"
-                      />
-                    </div>
-                    <span className="input-field-hint">Dinheiro físico ou troco disponível</span>
-                  </div>
-
-                  <div className="form-group">
-                    <label>
-                      <span>Saldo da Reserva de Emergência</span>
-                    </label>
-                    <div className="input-currency-wrapper">
-                      <span className="currency-prefix">R$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0,00"
-                        value={emergencyFundBalance}
-                        onChange={(e) => setEmergencyFundBalance(e.target.value)}
-                        required
-                        className="cf-input hunter-input mono-number input-with-prefix"
-                      />
-                    </div>
-                    <span className="input-field-hint">Guardado em poupança, CDB ou fundo seguro</span>
-                  </div>
-                </div>
+                {!isEditingAccount && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary"
+                    onClick={handleOpenAddAccount}
+                    style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <Plus size={14} />
+                    <span>Nova Conta</span>
+                  </button>
+                )}
               </div>
 
-              {/* Group 2: Limites de Crédito & Endividamento */}
-              <div className="form-section-group">
+              {/* Account Form Modal / Inline Editor */}
+              {isEditingAccount && (
+                <div className="cf-account-inline-card">
+                  <div className="cf-account-inline-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <Sparkles size={16} color="var(--color-primary)" />
+                      <strong style={{ fontSize: '0.92rem' }}>
+                        {editingAccountId ? 'Editar Conta Manual' : 'Adicionar Nova Conta Manual'}
+                      </strong>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={resetAccountForm}
+                      title="Cancelar edição de conta"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  <div className="form-grid-2col" style={{ marginTop: '0.75rem' }}>
+                    <div className="form-group">
+                      <label>Nome da Conta</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Conta Corrente Itaú, Cartão Nubank..."
+                        value={formAccountName}
+                        onChange={(e) => setFormAccountName(e.target.value)}
+                        required
+                        className="cf-input"
+                        autoFocus
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Instituição / Banco</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Nubank, Itaú, Banco Inter, Carteira..."
+                        value={formInstitution}
+                        onChange={(e) => setFormInstitution(e.target.value)}
+                        required
+                        className="cf-input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-grid-2col" style={{ marginTop: '0.65rem' }}>
+                    <div className="form-group">
+                      <label>Tipo de Conta</label>
+                      <select
+                        value={formType}
+                        onChange={(e) => setFormType(e.target.value as AccountType)}
+                        className="cf-select"
+                      >
+                        <option value="checking">Conta Corrente</option>
+                        <option value="credit_card">Cartão de Crédito</option>
+                        <option value="emergency_fund">Reserva de Emergência</option>
+                        <option value="wallet">Dinheiro em Mãos (Carteira)</option>
+                        <option value="investment">Investimentos</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>
+                        {formType === 'credit_card' ? 'Saldo Atual da Fatura (se houver)' : 'Saldo Atual Disponível (R$)'}
+                      </label>
+                      <div className="input-currency-wrapper">
+                        <span className="currency-prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="0,00"
+                          value={formBalance}
+                          onChange={(e) => setFormBalance(e.target.value)}
+                          required
+                          className="cf-input mono-number input-with-prefix"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Credit Card Specific Fields */}
+                  {formType === 'credit_card' && (
+                    <div className="form-grid-3col" style={{ marginTop: '0.65rem' }}>
+                      <div className="form-group">
+                        <label>Limite Total Concedido (R$)</label>
+                        <div className="input-currency-wrapper">
+                          <span className="currency-prefix">R$</span>
+                          <input
+                            type="number"
+                            step="100"
+                            min="0"
+                            placeholder="3500"
+                            value={formCreditLimit}
+                            onChange={(e) => setFormCreditLimit(e.target.value)}
+                            required
+                            className="cf-input mono-number input-with-prefix"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Dia Fechamento</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={formClosingDay}
+                          onChange={(e) => setFormClosingDay(e.target.value)}
+                          className="cf-input mono-number"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Dia Vencimento</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={formDueDay}
+                          onChange={(e) => setFormDueDay(e.target.value)}
+                          className="cf-input mono-number"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Checking Account Overdraft Limit */}
+                  {formType === 'checking' && (
+                    <div className="form-group" style={{ marginTop: '0.65rem' }}>
+                      <label>Limite de Cheque Especial / Crédito Rotativo (Opcional)</label>
+                      <div className="input-currency-wrapper">
+                        <span className="currency-prefix">R$</span>
+                        <input
+                          type="number"
+                          step="100"
+                          min="0"
+                          placeholder="0,00"
+                          value={formCreditLimit}
+                          onChange={(e) => setFormCreditLimit(e.target.value)}
+                          className="cf-input mono-number input-with-prefix"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Explanation / Notes of Limit and Account Rules */}
+                  <div className="form-group" style={{ marginTop: '0.65rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Info size={14} color="var(--color-primary)" />
+                      <span>Explicação do Limite Atual & Regras desta Conta</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Descreva detalhes do limite concedido, regras de uso, taxas ou objetivo desta conta (ex: Limite rotativo de R$ 3.500 para despesas diárias, vencimento dia 12)..."
+                      value={formNotes}
+                      onChange={(e) => setFormNotes(e.target.value)}
+                      className="cf-input"
+                      style={{ resize: 'vertical', fontSize: '0.82rem', minHeight: '52px' }}
+                    />
+                    <span className="input-field-hint">
+                      Esta explicação é exibida ao selecionar esta conta em novos lançamentos e nos detalhes de limite.
+                    </span>
+                  </div>
+
+                  {/* Color Picker */}
+                  <div className="form-group" style={{ marginTop: '0.65rem' }}>
+                    <label>Cor Identificadora da Instituição</label>
+                    <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {PRESET_BANK_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setFormColor(c)}
+                          style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            backgroundColor: c,
+                            border: formColor === c ? '2px solid #ffffff' : '1px solid rgba(0,0,0,0.1)',
+                            outline: formColor === c ? '2px solid var(--color-primary)' : 'none',
+                            cursor: 'pointer',
+                          }}
+                        />
+                      ))}
+                      <input
+                        type="color"
+                        value={formColor}
+                        onChange={(e) => setFormColor(e.target.value)}
+                        style={{ width: '32px', height: '26px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                        title="Escolher cor personalizada"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.85rem' }}>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={resetAccountForm}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={handleSaveAccountForm}
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>Salvar Conta</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Accounts List Cards */}
+              <div className="cf-manual-accounts-list">
+                {accountsList.map((acc) => {
+                  const bColor = acc.color || '#10b981';
+                  const isCard = acc.type === 'credit_card';
+
+                  return (
+                    <div key={acc.id} className="cf-manual-account-card">
+                      <div className="cf-acc-card-top">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <div 
+                            className="cf-acc-icon-bubble"
+                            style={{ backgroundColor: `${bColor}18`, color: bColor }}
+                          >
+                            {getAccountIcon(acc.type)}
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <strong style={{ fontSize: '0.95rem' }}>{acc.name}</strong>
+                              <span 
+                                className="cf-acc-badge-pill"
+                                style={{
+                                  backgroundColor: `${bColor}15`,
+                                  color: bColor,
+                                  border: `1px solid ${bColor}30`,
+                                }}
+                              >
+                                {acc.institutionName}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {ACCOUNT_TYPE_LABELS[acc.type]}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="cf-acc-card-actions">
+                          <button
+                            type="button"
+                            className="cf-acc-btn-icon"
+                            onClick={() => handleOpenEditAccount(acc)}
+                            title="Editar detalhes e limites desta conta"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="cf-acc-btn-icon danger"
+                            onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                            title="Excluir conta"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Balances and Limits Row */}
+                      <div className="cf-acc-card-metrics">
+                        {isCard ? (
+                          <div className="cf-metric-badge-box">
+                            <span className="cf-metric-label">Limite Total do Cartão</span>
+                            <span className="cf-metric-value mono-number text-purple">
+                              {formatCurrency(acc.creditLimit || 0)}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="cf-metric-badge-box">
+                            <span className="cf-metric-label">Saldo Atual Disponível</span>
+                            <span className="cf-metric-value mono-number text-emerald">
+                              {formatCurrency(acc.balance || 0)}
+                            </span>
+                          </div>
+                        )}
+
+                        {isCard && (acc.closingDay || acc.dueDay) && (
+                          <div className="cf-metric-badge-box">
+                            <span className="cf-metric-label">Fechamento / Vencimento</span>
+                            <span className="cf-metric-value" style={{ fontSize: '0.82rem' }}>
+                              <Calendar size={13} style={{ display: 'inline', marginRight: '3px' }} />
+                              Dia {acc.closingDay || 10} / Dia {acc.dueDay || 17}
+                            </span>
+                          </div>
+                        )}
+
+                        {!isCard && acc.creditLimit && acc.creditLimit > 0 && (
+                          <div className="cf-metric-badge-box">
+                            <span className="cf-metric-label">Cheque Especial</span>
+                            <span className="cf-metric-value mono-number">
+                              {formatCurrency(acc.creditLimit)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Limit / Account Notes Explanation Box */}
+                      {acc.notes && (
+                        <div className="cf-acc-notes-box">
+                          <Info size={13} style={{ flexShrink: 0, marginTop: '2px', color: bColor }} />
+                          <div style={{ flex: 1 }}>
+                            <strong style={{ fontSize: '0.74rem', color: 'var(--text-main)', display: 'block' }}>
+                              {isCard ? 'Regras e Limite Atual:' : 'Detalhes da Conta:'}
+                            </strong>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                              {acc.notes}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Group 2: Limites Globais de Dívida & Renda */}
+              <div className="form-section-group" style={{ marginTop: '0.5rem' }}>
                 <div className="form-section-title">
-                  <CreditCard size={15} color="var(--color-danger)" />
-                  <span>Limites de Crédito & Dívidas</span>
+                  <TrendingUp size={15} color="var(--color-primary)" />
+                  <span>Teto Geral de Segurança & Renda Mensal</span>
                 </div>
 
                 <div className="form-grid-2col">
                   <div className="form-group">
                     <label>
-                      <span>Limite do Cartão de Crédito</span>
+                      <span>Teto Seguro de Dívidas (Capacidade Máxima)</span>
+                    </label>
+                    <div className="input-currency-wrapper">
+                      <span className="currency-prefix">R$</span>
+                      <input
+                        type="number"
+                        step="500"
+                        min="0"
+                        value={maxDebt}
+                        onChange={(e) => setMaxDebt(e.target.value)}
+                        required
+                        className="cf-input hunter-input mono-number input-with-prefix"
+                      />
+                    </div>
+                    <span className="input-field-hint">Limite total antes do alerta de risco de endividamento</span>
+                  </div>
+
+                  <div className="form-group">
+                    <label>
+                      <span>Renda Mensal Prevista / Salário Base</span>
                     </label>
                     <div className="input-currency-wrapper">
                       <span className="currency-prefix">R$</span>
@@ -279,80 +755,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         type="number"
                         step="100"
                         min="0"
-                        placeholder="Ex: 5000"
-                        value={creditCardLimit}
-                        onChange={(e) => setCreditCardLimit(e.target.value)}
-                        required
+                        placeholder="Ex: 7500"
+                        value={monthlyIncome}
+                        onChange={(e) => setMonthlyIncome(e.target.value)}
                         className="cf-input hunter-input mono-number input-with-prefix"
                       />
                     </div>
-                    <span className="input-field-hint">Limite total concedido pelo cartão</span>
+                    <span className="input-field-hint">Utilizado para referências de metas e previsões</span>
                   </div>
-
-                  <div className="form-group">
-                    <label>
-                      <span>Limite de Cheque Especial</span>
-                    </label>
-                    <div className="input-currency-wrapper">
-                      <span className="currency-prefix">R$</span>
-                      <input
-                        type="number"
-                        step="100"
-                        min="0"
-                        placeholder="Ex: 1000"
-                        value={overdraftLimit}
-                        onChange={(e) => setOverdraftLimit(e.target.value)}
-                        className="cf-input hunter-input mono-number input-with-prefix"
-                      />
-                    </div>
-                    <span className="input-field-hint">Crédito rotativo ou emergencial bancário</span>
-                  </div>
-                </div>
-
-                <div className="form-group" style={{ marginTop: '0.65rem' }}>
-                  <label>
-                    <span>Teto Seguro de Dívidas (Capacidade Máxima)</span>
-                  </label>
-                  <div className="input-currency-wrapper">
-                    <span className="currency-prefix">R$</span>
-                    <input
-                      type="number"
-                      step="500"
-                      min="0"
-                      value={maxDebt}
-                      onChange={(e) => setMaxDebt(e.target.value)}
-                      required
-                      className="cf-input hunter-input mono-number input-with-prefix"
-                    />
-                  </div>
-                  <span className="input-field-hint">Limite máximo seguro de endividamento antes do alerta de risco</span>
-                </div>
-              </div>
-
-              {/* Group 3: Renda & Planejamento */}
-              <div className="form-section-group">
-                <div className="form-section-title">
-                  <TrendingUp size={15} color="var(--color-success)" />
-                  <span>Renda Mensal Estimada</span>
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    <span>Renda Mensal Prevista / Salário Líquido Base</span>
-                  </label>
-                  <div className="input-currency-wrapper">
-                    <span className="currency-prefix">R$</span>
-                    <input
-                      type="number"
-                      step="100"
-                      min="0"
-                      placeholder="Ex: 7500"
-                      value={monthlyIncome}
-                      onChange={(e) => setMonthlyIncome(e.target.value)}
-                      className="cf-input hunter-input mono-number input-with-prefix"
-                    />
-                  </div>
-                  <span className="input-field-hint">Utilizado para referências de metas e previsões mensais</span>
                 </div>
               </div>
             </div>
