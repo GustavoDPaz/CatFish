@@ -14,27 +14,17 @@ const STORAGE_KEYS = {
 
 export const DEFAULT_ACCOUNTS: FinancialAccount[] = [
   {
-    id: 'acc-checking-itau',
-    name: 'Conta Corrente',
-    institutionName: 'Itaú',
+    id: 'acc-checking-nubank',
+    name: 'Conta Corrente & Cartão',
+    institutionName: 'Nubank',
     type: 'checking',
     balance: 4200,
-    creditLimit: 1000,
-    color: '#EC7000',
-    notes: 'Conta corrente principal utilizada para recebimento de salário, transferências e pagamentos fixos.',
-    isDefault: true,
-  },
-  {
-    id: 'acc-card-nubank',
-    name: 'Cartão de Crédito',
-    institutionName: 'Nubank',
-    type: 'credit_card',
-    balance: 0,
+    hasCreditCard: true,
     creditLimit: 3500,
-    color: '#820AD1',
     closingDay: 5,
     dueDay: 12,
-    notes: 'Cartão de crédito para compras do dia a dia, supermercado e transporte. Limite aprovado de R$ 3.500,00 com fechamento dia 5.',
+    color: '#820AD1',
+    notes: 'Conta corrente Nubank com cartão de crédito integrado (limite de R$ 3.500,00, fechamento dia 5 e vencimento dia 12).',
     isDefault: true,
   },
   {
@@ -56,7 +46,7 @@ export const DEFAULT_ACCOUNTS: FinancialAccount[] = [
     balance: 1450,
     creditLimit: 0,
     color: '#10B981',
-    notes: 'Dinheiro em espécie na carteira física para trocos e pequenas despesas cotidianas.',
+    notes: 'Dinheiro em espécie na carteira física para trocos e despesas imediatas.',
     isDefault: true,
   },
 ];
@@ -549,6 +539,54 @@ export const storage = {
   },
 
   getAccounts: (): FinancialAccount[] => {
+    const normalizeAccounts = (list: FinancialAccount[]): FinancialAccount[] => {
+      const checkingMap = new Map<string, FinancialAccount>();
+      const otherAccounts: FinancialAccount[] = [];
+      const cardsToMerge: FinancialAccount[] = [];
+
+      list.forEach((acc) => {
+        if (acc.type === 'checking') {
+          const key = (acc.institutionName || 'banco').toLowerCase().trim();
+          checkingMap.set(key, {
+            ...acc,
+            hasCreditCard: acc.hasCreditCard ?? (typeof acc.creditLimit === 'number' && acc.creditLimit > 0),
+          });
+        } else if (acc.type === 'credit_card') {
+          cardsToMerge.push(acc);
+        } else {
+          otherAccounts.push(acc);
+        }
+      });
+
+      // Merge standalone credit card accounts into matching checking accounts, or convert to checking with credit card
+      cardsToMerge.forEach((card) => {
+        const instKey = (card.institutionName || 'banco').toLowerCase().trim();
+        const existingChecking = checkingMap.get(instKey);
+        if (existingChecking) {
+          existingChecking.hasCreditCard = true;
+          existingChecking.creditLimit = card.creditLimit || existingChecking.creditLimit || 3500;
+          existingChecking.closingDay = card.closingDay || existingChecking.closingDay || 5;
+          existingChecking.dueDay = card.dueDay || existingChecking.dueDay || 12;
+          if (card.notes && !existingChecking.notes?.includes(card.notes)) {
+            existingChecking.notes = `${existingChecking.notes || ''} • Cartão: ${card.notes}`.trim();
+          }
+        } else {
+          const converted: FinancialAccount = {
+            ...card,
+            type: 'checking',
+            hasCreditCard: true,
+            name: card.name.toLowerCase().includes('cartão') ? `${card.institutionName} (Conta & Cartão)` : card.name,
+            creditLimit: card.creditLimit || 3500,
+            closingDay: card.closingDay || 5,
+            dueDay: card.dueDay || 12,
+          };
+          checkingMap.set(instKey, converted);
+        }
+      });
+
+      return [...Array.from(checkingMap.values()), ...otherAccounts];
+    };
+
     try {
       const activeUser = storage.getActiveUser();
       const key = getUserStorageKey(STORAGE_KEYS.ACCOUNTS);
@@ -556,33 +594,23 @@ export const storage = {
       if (!data) {
         if (!activeUser || activeUser.id === 'usr-felipe-default') {
           const legacy = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
-          if (legacy) return JSON.parse(legacy);
+          if (legacy) return normalizeAccounts(JSON.parse(legacy));
         }
         // Initialize from profile if available
         const p = storage.getProfile();
         const initial: FinancialAccount[] = [
           {
-            id: 'acc-checking-itau',
-            name: 'Conta Corrente',
-            institutionName: p.bankName || 'Itaú',
+            id: 'acc-checking-nubank',
+            name: 'Conta Corrente & Cartão',
+            institutionName: p.bankName || 'Nubank',
             type: 'checking',
             balance: typeof p.bankBalance === 'number' ? p.bankBalance : 4200,
-            creditLimit: typeof p.overdraftLimit === 'number' ? p.overdraftLimit : 1000,
-            color: '#EC7000',
-            notes: 'Conta corrente principal para movimentação bancária, transferências e pagamentos fixos.',
-            isDefault: true,
-          },
-          {
-            id: 'acc-card-nubank',
-            name: 'Cartão de Crédito',
-            institutionName: 'Nubank',
-            type: 'credit_card',
-            balance: 0,
+            hasCreditCard: true,
             creditLimit: typeof p.creditCardLimit === 'number' ? p.creditCardLimit : 3500,
-            color: '#820AD1',
             closingDay: 5,
             dueDay: 12,
-            notes: `Cartão de crédito para compras do dia a dia, supermercado e transporte. Limite de R$ ${(typeof p.creditCardLimit === 'number' ? p.creditCardLimit : 3500).toLocaleString('pt-BR')}.`,
+            color: '#820AD1',
+            notes: 'Conta corrente com cartão de crédito integrado.',
             isDefault: true,
           },
           {
@@ -611,7 +639,7 @@ export const storage = {
         storage.saveAccounts(initial);
         return initial;
       }
-      return JSON.parse(data);
+      return normalizeAccounts(JSON.parse(data));
     } catch {
       return DEFAULT_ACCOUNTS;
     }
@@ -630,7 +658,9 @@ export const storage = {
         const checkingSum = accounts.filter(a => a.type === 'checking').reduce((acc, a) => acc + (a.balance || 0), 0);
         const walletSum = accounts.filter(a => a.type === 'wallet').reduce((acc, a) => acc + (a.balance || 0), 0);
         const reserveSum = accounts.filter(a => a.type === 'emergency_fund').reduce((acc, a) => acc + (a.balance || 0), 0);
-        const cardLimitSum = accounts.filter(a => a.type === 'credit_card').reduce((acc, a) => acc + (a.creditLimit || 0), 0);
+        const cardLimitSum = accounts
+          .filter(a => (a.type === 'checking' && a.hasCreditCard) || a.type === 'credit_card')
+          .reduce((acc, a) => acc + (a.creditLimit || 0), 0);
         const firstChecking = accounts.find(a => a.type === 'checking');
         
         p.bankBalance = checkingSum;

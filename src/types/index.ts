@@ -2,6 +2,8 @@ export type TransactionType = 'receita' | 'despesa' | 'reserva' | 'ren' | 'ko' |
 // Backward compatibility alias
 export type NenType = TransactionType;
 
+export type PaymentMethod = 'debit' | 'credit' | 'pix' | 'cash' | 'transfer';
+
 export interface Transaction {
   id: string;
   description: string;
@@ -10,6 +12,7 @@ export interface Transaction {
   category: string;
   account: string;
   bankName?: string;
+  paymentMethod?: PaymentMethod;
   date: string;
   recurring?: boolean;
   notes?: string;
@@ -34,10 +37,13 @@ export interface FinancialAccount {
   institutionName: string;
   type: AccountType;
   balance: number;
-  creditLimit?: number;
+  hasCreditCard?: boolean; // Define se a conta corrente possui cartão de crédito acoplado
+  creditLimit?: number; // Limite do cartão de crédito
+  overdraftLimit?: number; // Limite de cheque especial da conta (opcional)
   color?: string;
   closingDay?: number;
   dueDay?: number;
+  cardBrand?: string;
   notes?: string;
   isDefault?: boolean;
 }

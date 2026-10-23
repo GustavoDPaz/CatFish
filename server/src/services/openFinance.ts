@@ -242,7 +242,7 @@ export class OpenFinanceService {
    */
   static async getCreditCardsSummary(userId: string) {
     const accounts = await this.getUserAccounts(userId);
-    const cardAccounts = accounts.filter((a) => a.account_type === 'credit_card');
+    const cardAccounts = accounts.filter((a) => a.account_type === 'credit_card' || (a.account_type === 'checking' && Number(a.credit_limit || 0) > 0));
 
     const totalCreditLimit = cardAccounts.reduce((sum, a) => sum + Number(a.credit_limit || 0), 0);
     const totalUsedLimit = cardAccounts.reduce((sum, a) => sum + Number(a.used_limit || 0), 0);
