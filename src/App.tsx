@@ -79,6 +79,25 @@ export const App: React.FC = () => {
   const [bankConfigs, setBankConfigs] = useState<BankConfig[]>(() => storage.getBankConfigs());
   const [accounts, setAccounts] = useState<FinancialAccount[]>(() => storage.getAccounts());
 
+  // Automatic bidirectional synchronization with remote PostgreSQL database
+  useEffect(() => {
+    const userId = currentUser?.id || 'usr-felipe-default';
+    storage.syncFromRemote(userId).then((remoteData) => {
+      if (remoteData && Object.keys(remoteData).length > 0) {
+        if (remoteData.accounts) setAccounts(remoteData.accounts);
+        if (remoteData.transactions) setTransactions(remoteData.transactions);
+        if (remoteData.debts) setDebts(remoteData.debts);
+        if (remoteData.budgets) setBudgets(remoteData.budgets);
+        if (remoteData.cards) setCards(remoteData.cards);
+        if (remoteData.profile) setProfile(remoteData.profile);
+        if (remoteData.bankConfigs) setBankConfigs(remoteData.bankConfigs);
+      } else {
+        // If remote DB was clean, push local defaults to PostgreSQL
+        storage.syncAllToRemote(userId);
+      }
+    });
+  }, [currentUser?.id]);
+
   const handleUpdateAccounts = (updated: FinancialAccount[]) => {
     setAccounts(updated);
     storage.saveAccounts(updated);

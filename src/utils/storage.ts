@@ -83,6 +83,18 @@ function getUserStorageKey(baseKey: string): string {
   return baseKey;
 }
 
+// Helper to persist data remotely to PostgreSQL database
+const persistToRemoteDb = (userId: string, key: string, payload: any) => {
+  if (!userId) return;
+  fetch(`/api/user-data/${encodeURIComponent(userId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, payload }),
+  }).catch((err) => {
+    console.debug('[Storage] Remote DB sync offline fallback:', err);
+  });
+};
+
 export const DEFAULT_PROFILE: UserProfile = {
   name: 'Felipe',
   title: 'Planejamento Pessoal',
@@ -305,6 +317,15 @@ export const storage = {
     storage.saveBankConfigs(DEFAULT_BANKS);
     storage.saveAccounts(DEFAULT_ACCOUNTS);
 
+    // Register user and seed initial financial data in remote PostgreSQL database
+    fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newUser.name, email: newUser.email, password }),
+    }).catch((err) => console.debug('[Auth] Remote register fallback:', err));
+
+    storage.syncAllToRemote(newUser.id);
+
     return { success: true, user: newUser };
   },
 
@@ -318,6 +339,13 @@ export const storage = {
     if (user.password && user.password !== password) {
       return { success: false, error: 'Senha incorreta. Tente novamente.' };
     }
+
+    // Inform remote PostgreSQL backend
+    fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password }),
+    }).catch((err) => console.debug('[Auth] Remote login fallback:', err));
 
     storage.setActiveUser(user);
     return { success: true, user };
@@ -374,6 +402,10 @@ export const storage = {
   saveTransactions: (txs: Transaction[]) => {
     const key = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS);
     localStorage.setItem(key, JSON.stringify(txs));
+    const active = storage.getActiveUser();
+    if (active?.id) {
+      persistToRemoteDb(active.id, 'transactions', txs);
+    }
   },
 
   getDebts: (): Debt[] => {
@@ -402,6 +434,10 @@ export const storage = {
   saveDebts: (debts: Debt[]) => {
     const key = getUserStorageKey(STORAGE_KEYS.DEBTS);
     localStorage.setItem(key, JSON.stringify(debts));
+    const active = storage.getActiveUser();
+    if (active?.id) {
+      persistToRemoteDb(active.id, 'debts', debts);
+    }
   },
 
   getProfile: (): UserProfile => {
@@ -455,6 +491,10 @@ export const storage = {
   saveProfile: (p: UserProfile) => {
     const key = getUserStorageKey(STORAGE_KEYS.PROFILE);
     localStorage.setItem(key, JSON.stringify(p));
+    const active = storage.getActiveUser();
+    if (active?.id) {
+      persistToRemoteDb(active.id, 'profile', p);
+    }
   },
 
   getBudgets: (): BudgetLimit[] => {
@@ -484,6 +524,10 @@ export const storage = {
   saveBudgets: (b: BudgetLimit[]) => {
     const key = getUserStorageKey(STORAGE_KEYS.BUDGETS);
     localStorage.setItem(key, JSON.stringify(b));
+    const active = storage.getActiveUser();
+    if (active?.id) {
+      persistToRemoteDb(active.id, 'budgets', b);
+    }
   },
 
   getCards: (): FinancialGoal[] => {
@@ -512,6 +556,10 @@ export const storage = {
   saveCards: (c: FinancialGoal[]) => {
     const key = getUserStorageKey(STORAGE_KEYS.CARDS);
     localStorage.setItem(key, JSON.stringify(c));
+    const active = storage.getActiveUser();
+    if (active?.id) {
+      persistToRemoteDb(active.id, 'cards', c);
+    }
   },
 
   getBankConfigs: (): BankConfig[] => {
@@ -536,6 +584,10 @@ export const storage = {
   saveBankConfigs: (banks: BankConfig[]) => {
     const key = getUserStorageKey(STORAGE_KEYS.BANKS);
     localStorage.setItem(key, JSON.stringify(banks));
+    const active = storage.getActiveUser();
+    if (active?.id) {
+      persistToRemoteDb(active.id, 'bankConfigs', banks);
+    }
   },
 
   getAccounts: (): FinancialAccount[] => {
@@ -648,6 +700,10 @@ export const storage = {
   saveAccounts: (accounts: FinancialAccount[]) => {
     const key = getUserStorageKey(STORAGE_KEYS.ACCOUNTS);
     localStorage.setItem(key, JSON.stringify(accounts));
+    const active = storage.getActiveUser();
+    if (active?.id) {
+      persistToRemoteDb(active.id, 'accounts', accounts);
+    }
 
     // Keep profile metrics seamlessly in sync with the sum of accounts
     try {
@@ -708,6 +764,76 @@ export const storage = {
     } catch (e) {
       console.error('Failed to parse backup', e);
       return false;
+    }
+  },
+
+  syncFromRemote: async (userId: string): Promise<Record<string, any> | null> => {
+    if (!userId) return null;
+    try {
+      const res = await fetch(`/api/user-data/${encodeURIComponent(userId)}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      if (!json.success || !json.data) return null;
+      const remote = json.data;
+
+      const userPrefix = `catfish_${userId}_`;
+      if (remote.accounts && Array.isArray(remote.accounts)) {
+        localStorage.setItem(`${userPrefix}accounts`, JSON.stringify(remote.accounts));
+      }
+      if (remote.transactions && Array.isArray(remote.transactions)) {
+        localStorage.setItem(`${userPrefix}transactions`, JSON.stringify(remote.transactions));
+      }
+      if (remote.debts && Array.isArray(remote.debts)) {
+        localStorage.setItem(`${userPrefix}debts`, JSON.stringify(remote.debts));
+      }
+      if (remote.budgets && Array.isArray(remote.budgets)) {
+        localStorage.setItem(`${userPrefix}budgets`, JSON.stringify(remote.budgets));
+      }
+      if (remote.cards && Array.isArray(remote.cards)) {
+        localStorage.setItem(`${userPrefix}cards`, JSON.stringify(remote.cards));
+      }
+      if (remote.profile && typeof remote.profile === 'object') {
+        localStorage.setItem(`${userPrefix}profile`, JSON.stringify(remote.profile));
+      }
+      if (remote.bankConfigs && Array.isArray(remote.bankConfigs)) {
+        localStorage.setItem(`${userPrefix}banks`, JSON.stringify(remote.bankConfigs));
+      }
+
+      return remote;
+    } catch (err) {
+      console.debug('[Storage] syncFromRemote fallback to local storage:', err);
+      return null;
+    }
+  },
+
+  syncAllToRemote: async (userId: string) => {
+    if (!userId) return;
+    try {
+      const accounts = storage.getAccounts();
+      const transactions = storage.getTransactions();
+      const debts = storage.getDebts();
+      const budgets = storage.getBudgets();
+      const cards = storage.getCards();
+      const profile = storage.getProfile();
+      const bankConfigs = storage.getBankConfigs();
+
+      await fetch(`/api/user-data/${encodeURIComponent(userId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            accounts,
+            transactions,
+            debts,
+            budgets,
+            cards,
+            profile,
+            bankConfigs,
+          },
+        }),
+      });
+    } catch (err) {
+      console.debug('[Storage] syncAllToRemote fallback:', err);
     }
   },
 
