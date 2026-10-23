@@ -406,16 +406,22 @@ export const App: React.FC = () => {
   const manualChecking = accounts.filter((a) => a.type === 'checking');
   const manualWallet = accounts.filter((a) => a.type === 'wallet');
   const manualReserve = accounts.filter((a) => a.type === 'emergency_fund');
-  const manualCardAccounts = accounts.filter((a) => a.type === 'credit_card');
+  const manualCardAccounts = accounts.filter((a) => (a.type === 'checking' && a.hasCreditCard && (a.creditLimit || 0) > 0) || a.type === 'credit_card');
 
   const getAccountNetTx = (acc: FinancialAccount) => {
     return transactions
-      .filter((t) =>
-        t.account === acc.name ||
-        (acc.type === 'checking' && t.account === 'Conta Corrente' && t.bankName?.toLowerCase() === acc.institutionName.toLowerCase()) ||
-        (acc.type === 'wallet' && t.account === 'Carteira') ||
-        (acc.type === 'emergency_fund' && (t.account === 'Reserva de Emergência' || t.type === 'reserva' || t.type === 'ten'))
-      )
+      .filter((t) => {
+        // Purchases made on credit do NOT deduct from checking liquid balance
+        if (t.paymentMethod === 'credit' || t.account === 'Cartão de Crédito') {
+          return false;
+        }
+        return (
+          t.account === acc.name ||
+          (acc.type === 'checking' && t.account === 'Conta Corrente' && t.bankName?.toLowerCase() === acc.institutionName.toLowerCase()) ||
+          (acc.type === 'wallet' && t.account === 'Carteira') ||
+          (acc.type === 'emergency_fund' && (t.account === 'Reserva de Emergência' || t.type === 'reserva' || t.type === 'ten'))
+        );
+      })
       .reduce((sum, t) => {
         if (t.type === 'receita' || t.type === 'ren' || t.type === 'reserva' || t.type === 'ten') return sum + t.amount;
         if (t.type === 'despesa' || t.type === 'ko') return sum - t.amount;
@@ -467,7 +473,9 @@ export const App: React.FC = () => {
         const bCardExpenses = transactions
           .filter(
             (t) =>
-              (t.account === acc.name || (t.bankName?.toLowerCase() === acc.institutionName.toLowerCase() && t.account === 'Cartão de Crédito')) &&
+              ((t.account === acc.name && t.paymentMethod === 'credit') ||
+               (t.account === acc.name && acc.type === 'credit_card') ||
+               (t.bankName?.toLowerCase() === acc.institutionName.toLowerCase() && (t.account === 'Cartão de Crédito' || t.paymentMethod === 'credit'))) &&
               (t.type === 'despesa' || t.type === 'ko')
           )
           .reduce((sum, t) => sum + t.amount, 0);
@@ -478,7 +486,7 @@ export const App: React.FC = () => {
         return {
           accountId: acc.id,
           institutionName: acc.institutionName,
-          cardName: acc.name,
+          cardName: acc.type === 'checking' ? `Cartão ${acc.institutionName}` : acc.name,
           totalLimit,
           usedLimit,
           availableLimit,
@@ -642,6 +650,7 @@ export const App: React.FC = () => {
             bankConfigs={bankConfigs}
             onUpdateBankConfigs={handleUpdateBankConfigs}
             accounts={accounts}
+            onUpdateAccounts={handleUpdateAccounts}
             onOpenContabilizar={() => handleOpenProfileModal('financial')}
           />
         )}
@@ -806,7 +815,7 @@ export const App: React.FC = () => {
                     {accounts.length > 0 ? (
                       accounts.map((a) => (
                         <option key={a.id} value={a.name}>
-                          {a.institutionName} • {a.name} ({a.type === 'credit_card' ? 'Cartão' : 'Conta'})
+                          {a.institutionName} • {a.name} ({a.hasCreditCard ? 'Conta com Cartão' : a.type === 'credit_card' ? 'Cartão' : 'Conta'})
                         </option>
                       ))
                     ) : (

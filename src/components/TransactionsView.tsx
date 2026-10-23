@@ -27,6 +27,7 @@ interface TransactionsViewProps {
   bankConfigs: BankConfig[];
   onUpdateBankConfigs: (banks: BankConfig[]) => void;
   accounts?: FinancialAccount[];
+  onUpdateAccounts?: (accounts: FinancialAccount[]) => void;
   onOpenContabilizar?: () => void;
 }
 
@@ -37,18 +38,6 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   wallet: 'Dinheiro em Mãos',
   investment: 'Investimentos',
 };
-
-const PRESET_COLORS = [
-  '#820AD1', // Nubank purple
-  '#FF7A00', // Inter orange
-  '#EC7000', // Itaú amber
-  '#CC092F', // Bradesco crimson
-  '#242424', // C6 dark
-  '#EA1D2C', // Santander red
-  '#003882', // BB royal blue
-  '#0066B3', // Caixa blue
-  '#10B981', // Emerald green
-];
 
 export const TransactionsView: React.FC<TransactionsViewProps> = ({
   transactions,
@@ -61,10 +50,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   onOpenContabilizar,
 }) => {
   const [filterType, setFilterType] = useState<'all' | TransactionType>('all');
-  const [selectedBank, setSelectedBank] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showLimitsModal, setShowLimitsModal] = useState(false);
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
@@ -91,14 +78,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [inlineBankName, setInlineBankName] = useState('');
   const [inlineBankLimit, setInlineBankLimit] = useState('3000');
   const inlineBankColor = '#820AD1';
-
-  // Limits Modal Form state (for adding a new bank in limits modal)
-  const [newBankName, setNewBankName] = useState('');
-  const [newBankLimit, setNewBankLimit] = useState('3000');
-  const [newBankColor, setNewBankColor] = useState('#820AD1');
-  const [newBankClosing, setNewBankClosing] = useState('10');
-  const [newBankDue, setNewBankDue] = useState('17');
-  const [showAddNewBankPanel, setShowAddNewBankPanel] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'debit' | 'credit'>('debit');
 
   // Sync selectedAccountId if accounts change
   useEffect(() => {
@@ -138,75 +118,128 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     return '#10B981';
   };
 
-  // Card invoices per bank
-  const getBankCardInvoice = (bName: string): number => {
+  // Real Card Accounts (Contas correntes com cartão habilitado ou cartões dedicados)
+  const realCardAccounts = useMemo(() => {
+    return accounts.filter(
+      (a) => (a.type === 'checking' && a.hasCreditCard) || a.type === 'credit_card'
+    );
+  }, [accounts]);
+
+  // Real Card Invoices: expenses where paymentMethod === 'credit' or account === 'Cartão de Crédito'
+  const getAccountCardInvoice = (acc: FinancialAccount): number => {
     return transactions
       .filter(
         (t) =>
-          (t.bankName?.toLowerCase() === bName.toLowerCase()) &&
-          t.account === 'Cartão de Crédito' &&
+          ((t.account === acc.name && t.paymentMethod === 'credit') ||
+            (t.account === acc.name && acc.type === 'credit_card') ||
+            (t.bankName?.toLowerCase() === acc.institutionName.toLowerCase() &&
+              (t.account === 'Cartão de Crédito' || t.paymentMethod === 'credit'))) &&
           (t.type === 'despesa' || t.type === 'ko')
       )
       .reduce((sum, t) => sum + t.amount, 0);
   };
 
-  // Consolidated Credit Card Metrics across all banks
-  const consolidatedTotalLimit = bankConfigs.reduce((sum, b) => sum + (Number(b.creditCardLimit) || 0), 0);
-  const consolidatedUsedLimit = bankConfigs.reduce((sum, b) => sum + getBankCardInvoice(b.name), 0);
+  // Consolidated Credit Card Metrics: strictly tied to real accounts with credit card
+  const consolidatedTotalLimit = realCardAccounts.reduce(
+    (sum, a) => sum + (Number(a.creditLimit) || 0),
+    0
+  );
+
+  const consolidatedUsedLimit = realCardAccounts.reduce(
+    (sum, a) => sum + getAccountCardInvoice(a),
+    0
+  );
+
   const consolidatedAvailableLimit = Math.max(0, consolidatedTotalLimit - consolidatedUsedLimit);
   const consolidatedUsagePercent =
     consolidatedTotalLimit > 0
       ? Math.min(100, Math.round((consolidatedUsedLimit / consolidatedTotalLimit) * 100))
       : 0;
 
-  // Selected bank metrics
-  const activeBankConfig = bankConfigs.find((b) => b.name.toLowerCase() === selectedBank.toLowerCase());
-  const activeBankInvoice = activeBankConfig ? getBankCardInvoice(activeBankConfig.name) : 0;
-  const activeBankLimit = activeBankConfig?.creditCardLimit || 0;
-  const activeBankAvailable = Math.max(0, activeBankLimit - activeBankInvoice);
-  const activeBankUsagePercent =
-    activeBankLimit > 0 ? Math.min(100, Math.round((activeBankInvoice / activeBankLimit) * 100)) : 0;
+  // Period totals
+  const totalRen = transactions
+    .filter((t) => t.type === 'ren' || t.type === 'receita')
+    .reduce((sum, t) => sum + t.amount, 0);
 
-  // Filter transactions
-  const filtered = transactions
-    .filter((tx) => {
-      // 1. Type filter
-      let matchesType = filterType === 'all';
-      if (!matchesType) {
-        if (filterType === 'ren' || filterType === 'receita') {
-          matchesType = tx.type === 'ren' || tx.type === 'receita';
-        } else if (filterType === 'ko' || filterType === 'despesa') {
-          matchesType = tx.type === 'ko' || tx.type === 'despesa';
-        } else if (filterType === 'ten' || filterType === 'reserva') {
-          matchesType = tx.type === 'ten' || tx.type === 'reserva';
-        } else {
-          matchesType = (tx.type as string) === (filterType as string);
+  const totalKo = transactions
+    .filter((t) => t.type === 'ko' || t.type === 'despesa')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const netTotal = totalRen - totalKo;
+
+  const numEntered = Number(amount) || 0;
+
+  // Search & Filter ranking by relevance (por Lançamento, Banco ou Categoria)
+  const q = searchQuery.toLowerCase().trim();
+
+  const computeRelevance = (tx: Transaction): number => {
+    if (!q) return 1;
+    const desc = (tx.description || '').toLowerCase();
+    const notes = (tx.notes || '').toLowerCase();
+    const bank = (tx.bankName || '').toLowerCase();
+    const acc = (tx.account || '').toLowerCase();
+    const cat = (tx.category || '').toLowerCase();
+
+    let score = 0;
+    // 1. Banco (prioridade de busca por banco)
+    if (bank === q || acc === q) score += 100;
+    else if (bank.startsWith(q) || acc.startsWith(q)) score += 60;
+    else if (bank.includes(q) || acc.includes(q)) score += 30;
+
+    // 2. Categoria / Tipo de Gasto
+    if (cat === q) score += 80;
+    else if (cat.startsWith(q)) score += 50;
+    else if (cat.includes(q)) score += 25;
+
+    // 3. Lançamento (Descrição / Notas)
+    if (desc === q) score += 90;
+    else if (desc.startsWith(q)) score += 55;
+    else if (desc.includes(q) || notes.includes(q)) score += 35;
+
+    return score;
+  };
+
+  const filtered = useMemo(() => {
+    return transactions
+      .filter((tx) => {
+        // 1. Filtro por Tipo (Receita, Despesa, Reserva)
+        if (filterType !== 'all') {
+          if (filterType === 'ren' || filterType === 'receita') {
+            if (tx.type !== 'ren' && tx.type !== 'receita') return false;
+          } else if (filterType === 'ko' || filterType === 'despesa') {
+            if (tx.type !== 'ko' && tx.type !== 'despesa') return false;
+          } else if (filterType === 'ten' || filterType === 'reserva') {
+            if (tx.type !== 'ten' && tx.type !== 'reserva') return false;
+          } else if ((tx.type as string) !== (filterType as string)) {
+            return false;
+          }
         }
-      }
 
-      // 2. Bank filter
-      const txBank = tx.bankName || 'Nubank';
-      const matchesBank =
-        selectedBank === 'all' || txBank.toLowerCase() === selectedBank.toLowerCase();
+        // 2. Busca por Lançamento, Banco ou Categoria
+        if (q) {
+          return computeRelevance(tx) > 0;
+        }
 
-      // 3. Search query filter
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        tx.description.toLowerCase().includes(q) ||
-        tx.category.toLowerCase().includes(q) ||
-        tx.account.toLowerCase().includes(q) ||
-        txBank.toLowerCase().includes(q);
-
-      return matchesType && matchesBank && matchesSearch;
-    })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return true;
+      })
+      .sort((a, b) => {
+        if (q) {
+          const scoreB = computeRelevance(b);
+          const scoreA = computeRelevance(a);
+          if (scoreB !== scoreA) {
+            return scoreB - scoreA;
+          }
+        }
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      });
+  }, [transactions, filterType, q]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
 
   // Reset to page 1 on filter or search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, selectedBank, searchQuery]);
+  }, [filterType, searchQuery]);
 
   // Adjust page if items were deleted and page is now empty
   useEffect(() => {
@@ -218,75 +251,26 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedTransactions = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // Period totals for current filter
-  const targetTxs = selectedBank === 'all'
-    ? transactions
-    : transactions.filter((t) => (t.bankName || 'Nubank').toLowerCase() === selectedBank.toLowerCase());
-
-  const totalRen = targetTxs
-    .filter((t) => t.type === 'ren' || t.type === 'receita')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const totalKo = targetTxs
-    .filter((t) => t.type === 'ko' || t.type === 'despesa')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const netTotal = totalRen - totalKo;
-
-  const numEntered = Number(amount) || 0;
-
   // Selected manual account details
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
-  const selectedAccountLimit = selectedAccount?.type === 'credit_card' ? (selectedAccount.creditLimit || 0) : 0;
+  const hasAccountCard = Boolean(selectedAccount?.hasCreditCard || selectedAccount?.type === 'credit_card');
+  const isCreditMode = (selectedAccount?.type === 'credit_card') || (hasAccountCard && paymentMethod === 'credit');
+
+  const selectedAccountLimit = isCreditMode ? (selectedAccount?.creditLimit || 0) : 0;
   const selectedAccountUsed = selectedAccount
     ? transactions
         .filter(
           (t) =>
-            (t.account === selectedAccount.name || (t.bankName?.toLowerCase() === selectedAccount.institutionName.toLowerCase() && t.account === 'Cartão de Crédito')) &&
+            ((t.account === selectedAccount.name && t.paymentMethod === 'credit') ||
+             (t.account === selectedAccount.name && selectedAccount.type === 'credit_card') ||
+             (t.bankName?.toLowerCase() === selectedAccount.institutionName.toLowerCase() && (t.account === 'Cartão de Crédito' || t.paymentMethod === 'credit'))) &&
             (t.type === 'despesa' || t.type === 'ko')
         )
         .reduce((sum, t) => sum + t.amount, 0)
     : 0;
   const selectedAccountAvail = Math.max(0, selectedAccountLimit - selectedAccountUsed);
   const willExceedSelectedLimit =
-    selectedAccount?.type === 'credit_card' && numEntered > 0 && numEntered > selectedAccountAvail;
-
-  // Combined bank filter list (manual accounts institutions + bankConfigs)
-  const bankFilterItems = useMemo(() => {
-    const list: { name: string; color: string; creditCardLimit: number; id: string }[] = [];
-    const seen = new Set<string>();
-
-    accounts.forEach((acc) => {
-      const lower = acc.institutionName.toLowerCase();
-      if (!seen.has(lower)) {
-        seen.add(lower);
-        list.push({
-          id: `inst-${acc.id}`,
-          name: acc.institutionName,
-          color: acc.color || getBankColor(acc.institutionName),
-          creditCardLimit: acc.type === 'credit_card' ? (acc.creditLimit || 0) : 0,
-        });
-      } else if (acc.type === 'credit_card' && acc.creditLimit) {
-        const found = list.find((item) => item.name.toLowerCase() === lower);
-        if (found) found.creditCardLimit += acc.creditLimit;
-      }
-    });
-
-    bankConfigs.forEach((b) => {
-      const lower = b.name.toLowerCase();
-      if (!seen.has(lower)) {
-        seen.add(lower);
-        list.push({
-          id: b.id,
-          name: b.name,
-          color: b.color,
-          creditCardLimit: b.creditCardLimit || 0,
-        });
-      }
-    });
-
-    return list;
-  }, [accounts, bankConfigs]);
+    isCreditMode && numEntered > 0 && numEntered > selectedAccountAvail;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,10 +284,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     onAddTransaction({
       description,
       amount: num,
-      type,
+      type: isCreditMode ? 'ko' : type,
       category,
       account: finalAccount,
       bankName: finalBank,
+      paymentMethod: isCreditMode ? 'credit' : 'debit',
       date,
       notes,
     });
@@ -316,45 +301,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     setAmount('');
     setNotes('');
     setShowAddModal(false);
-  };
-
-  const handleUpdateSingleLimit = (bankId: string, newLimit: number) => {
-    const updated = bankConfigs.map((b) => (b.id === bankId ? { ...b, creditCardLimit: Math.max(0, newLimit) } : b));
-    onUpdateBankConfigs(updated);
-  };
-
-  const handleQuickAdjustLimit = (bankId: string, delta: number) => {
-    const found = bankConfigs.find((b) => b.id === bankId);
-    if (!found) return;
-    handleUpdateSingleLimit(bankId, Math.max(0, (found.creditCardLimit || 0) + delta));
-  };
-
-  const handleCreateNewBank = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newBankName.trim()) return;
-
-    const cleanName = newBankName.trim();
-    if (bankConfigs.some((b) => b.name.toLowerCase() === cleanName.toLowerCase())) {
-      alert(`O banco "${cleanName}" já existe.`);
-      return;
-    }
-
-    const createdBank: BankConfig = {
-      id: `bank-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      name: cleanName,
-      color: newBankColor,
-      creditCardLimit: Math.max(0, Number(newBankLimit) || 0),
-      closingDay: Number(newBankClosing) || 10,
-      dueDay: Number(newBankDue) || 17,
-    };
-
-    const updated = [...bankConfigs, createdBank];
-    onUpdateBankConfigs(updated);
-    audioManager.playSuccessChime();
-
-    setNewBankName('');
-    setNewBankLimit('3000');
-    setShowAddNewBankPanel(false);
   };
 
   const handleCreateInlineBank = (e: React.FormEvent) => {
@@ -385,58 +331,32 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     audioManager.playSuccessChime();
   };
 
-  const handleDeleteBank = (bankId: string, bName: string) => {
-    if (bankConfigs.length <= 1) {
-      alert('Você deve manter pelo menos um banco cadastrado.');
-      return;
-    }
-    if (!window.confirm(`Tem certeza de que deseja remover o banco "${bName}" da lista?`)) return;
-
-    const updated = bankConfigs.filter((b) => b.id !== bankId);
-    onUpdateBankConfigs(updated);
-    if (selectedBank.toLowerCase() === bName.toLowerCase()) {
-      setSelectedBank('all');
-    }
-    audioManager.playKoExpense();
-  };
-
   return (
     <div className="cf-dashboard-layout">
       {/* Top Greeting & Hero KPI Card */}
       <section className="cf-greeting-hero">
         <div className="cf-greeting-top-row">
           <span className="cf-greeting-date">
-            {selectedBank === 'all'
-              ? 'Extrato consolidado • Multi-bancos'
-              : `Extrato filtrado • ${selectedBank}`}
+            Extrato consolidado • Multi-bancos
           </span>
           <span className={`cf-risk-mode-pill ${netTotal < 0 ? 'cf-risk-mode-pill-danger' : ''}`}>
-            <span
-              className="cf-status-dot-active"
-              style={selectedBank !== 'all' ? { backgroundColor: getBankColor(selectedBank) } : undefined}
-            />
-            {selectedBank === 'all'
-              ? netTotal >= 0
-                ? 'Saldo geral positivo'
-                : 'Saldo geral negativo'
-              : `Filtro ativo: ${selectedBank}`}
+            <span className="cf-status-dot-active" />
+            {netTotal >= 0 ? 'Saldo geral positivo' : 'Saldo geral negativo'}
           </span>
         </div>
 
         <h1 className="cf-greeting-title">
-          {selectedBank === 'all' ? 'Lançamentos e extrato' : `Lançamentos • ${selectedBank}`}
+          Lançamentos e extrato
         </h1>
         <p className="cf-greeting-subtitle">
-          {selectedBank === 'all'
-            ? 'Histórico consolidado de receitas, despesas e faturas de cartão com filtro por banco e busca rápida.'
-            : `Histórico de movimentações vinculadas ao ${selectedBank} com acompanhamento do limite de cartão de crédito.`}
+          Histórico consolidado de receitas, despesas e cartões com busca unificada por lançamento, banco ou categoria.
         </p>
 
         {/* 4-Column Metric Strip */}
         <div className="cf-hero-metrics-strip">
           <div className="cf-hero-metric-col">
             <span className="cf-metric-label">
-              {selectedBank === 'all' ? 'Saldo do período' : `Saldo no ${selectedBank}`}
+              Saldo do período
             </span>
             <span className={`cf-metric-value mono-number ${netTotal >= 0 ? 'cf-val-green' : 'cf-val-dark'}`}>
               {netTotal >= 0 ? '+' : ''}
@@ -447,7 +367,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
           <div className="cf-hero-metric-col">
             <span className="cf-metric-label">
-              {selectedBank === 'all' ? 'Total de receitas' : `Receitas no ${selectedBank}`}
+              Total de receitas
             </span>
             <span className="cf-metric-value cf-val-green mono-number">+{formatCurrency(totalRen)}</span>
             <span className="cf-metric-subtext">Entradas registradas</span>
@@ -455,7 +375,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
           <div className="cf-hero-metric-col">
             <span className="cf-metric-label">
-              {selectedBank === 'all' ? 'Total de despesas' : `Despesas no ${selectedBank}`}
+              Total de despesas
             </span>
             <span className="cf-metric-value cf-val-dark mono-number">-{formatCurrency(totalKo)}</span>
             <span className="cf-metric-subtext">Saídas contabilizadas</span>
@@ -463,17 +383,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
           <div className="cf-hero-metric-col">
             <span className="cf-metric-label">
-              {selectedBank === 'all' ? 'Limite Cartões (Geral)' : `Cartão ${selectedBank}`}
+              Limite dos Cartões
             </span>
             <span className="cf-metric-value cf-val-blue mono-number" style={{ fontSize: '1.05rem' }}>
-              {selectedBank === 'all'
-                ? `${formatCurrency(consolidatedUsedLimit)}`
-                : `${formatCurrency(activeBankInvoice)}`}
+              {formatCurrency(consolidatedUsedLimit)}
             </span>
             <span className="cf-metric-subtext">
-              {selectedBank === 'all'
-                ? `de ${formatCurrency(consolidatedTotalLimit)} (${consolidatedUsagePercent}% usado)`
-                : `${formatCurrency(activeBankAvailable)} disp. (${activeBankUsagePercent}% usado)`}
+              de {formatCurrency(consolidatedTotalLimit)} ({consolidatedUsagePercent}% • {formatCurrency(consolidatedAvailableLimit)} disp.)
             </span>
           </div>
         </div>
@@ -481,56 +397,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       {/* Main Transactions Card */}
       <div className="cf-card">
-        {/* BANK FILTER BAR (Escolher entre bancos disponíveis & Gerenciar Limites) */}
-        <div className="cf-bank-filter-wrapper">
-          <div className="cf-bank-filter-scroll">
-            <button
-              type="button"
-              className={`cf-bank-filter-pill ${selectedBank === 'all' ? 'active' : ''}`}
-              onClick={() => setSelectedBank('all')}
-              title="Exibir lançamentos de todas as instituições financeiras"
-            >
-              <Landmark size={14} />
-              <span>Todos os bancos</span>
-              <span className="cf-bank-pill-count">{transactions.length}</span>
-            </button>
-
-            {bankFilterItems.map((b) => {
-              const count = transactions.filter(
-                (t) => (t.bankName || 'Nubank').toLowerCase() === b.name.toLowerCase()
-              ).length;
-              const isSelected = selectedBank.toLowerCase() === b.name.toLowerCase();
-
-              return (
-                <button
-                  key={b.id}
-                  type="button"
-                  className={`cf-bank-filter-pill ${isSelected ? 'active' : ''}`}
-                  onClick={() => setSelectedBank(isSelected ? 'all' : b.name)}
-                  title={`Filtrar lançamentos de ${b.name} ${b.creditCardLimit > 0 ? `(Limite do Cartão: ${formatCurrency(b.creditCardLimit)})` : ''}`}
-                >
-                  <span className="cf-bank-dot" style={{ backgroundColor: b.color }} />
-                  <span>{b.name}</span>
-                  <span className="cf-bank-pill-count">{count}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            className="cf-btn-limits"
-            onClick={() => setShowLimitsModal(true)}
-            title="Definir e acompanhar limites de cartão para cada banco"
-          >
-            <CreditCard size={15} />
-            <span>Limites de Cartão</span>
-            <span className="cf-btn-limits-badge">
-              {formatCurrency(consolidatedUsedLimit)} / {formatCurrency(consolidatedTotalLimit)}
-            </span>
-          </button>
-        </div>
-
         {/* Clean Toolbar: Type Tabs, Search, OFX, and New Transaction */}
         <div className="clean-toolbar" style={{ marginBottom: '1.25rem' }}>
           <div className="clean-filter-tabs">
@@ -560,13 +426,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             </button>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
+            <div style={{ position: 'relative', flex: '1 1 280px', maxWidth: '440px' }}>
               <Search
-                size={14}
+                size={15}
                 style={{
                   position: 'absolute',
-                  left: '0.65rem',
+                  left: '0.75rem',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   color: 'var(--text-dim)',
@@ -574,11 +440,34 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               />
               <input
                 type="text"
-                placeholder={selectedBank === 'all' ? 'Buscar lançamento ou banco...' : `Buscar no ${selectedBank}...`}
+                placeholder="Buscar por lançamento, banco ou categoria..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="clean-search-input"
+                style={{ width: '100%', paddingLeft: '2.2rem', paddingRight: searchQuery ? '2.2rem' : '0.75rem' }}
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.65rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-dim)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Limpar busca"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
 
             {onOpenOfxModal && (
@@ -598,21 +487,17 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             </button>
           </div>
         </div>
-
         {/* Transactions List */}
         <div className="transactions-clean-section">
           {filtered.length === 0 ? (
             <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <p style={{ margin: 0, fontSize: '0.95rem' }}>
-                {selectedBank !== 'all'
-                  ? `Nenhum lançamento encontrado para ${selectedBank}.`
-                  : 'Nenhum lançamento encontrado com os filtros atuais.'}
+                Nenhum lançamento encontrado com os filtros atuais.
               </p>
               <button
                 type="button"
                 className="cf-btn-secondary"
                 onClick={() => {
-                  setSelectedBank('all');
                   setFilterType('all');
                   setSearchQuery('');
                 }}
@@ -667,6 +552,25 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           <span>{tx.category}</span>
                           <span>•</span>
                           <span>{tx.account}</span>
+                          {(tx.paymentMethod === 'credit' || tx.account === 'Cartão de Crédito') && (
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                color: '#820ad1',
+                                fontWeight: 600,
+                                background: 'rgba(130, 10, 209, 0.1)',
+                                padding: '0.1rem 0.35rem',
+                                borderRadius: '4px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                              }}
+                              title="Lançamento efetuado via Cartão de Crédito"
+                            >
+                              <CreditCard size={11} />
+                              Crédito
+                            </span>
+                          )}
                           <span>•</span>
                           <span>{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
                         </div>
@@ -1013,6 +917,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         setAccount(chosen.name);
                         if (chosen.type === 'credit_card') {
                           setType('ko');
+                          setPaymentMethod('credit');
+                        } else if (chosen.hasCreditCard) {
+                          // Keep existing paymentMethod or default to debit
+                        } else {
+                          setPaymentMethod('debit');
                         }
                       }
                     }}
@@ -1020,12 +929,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   >
                     {accounts.map((acc) => {
                       const typeLabel = ACCOUNT_TYPE_LABELS[acc.type] || acc.type;
-                      const limitOrBalance = acc.type === 'credit_card'
-                        ? `Lim. ${formatCurrency(acc.creditLimit || 0)}`
+                      const hasCardBadge = acc.hasCreditCard ? ' • 💳 Cartão' : '';
+                      const limitOrBalance = (acc.hasCreditCard || acc.type === 'credit_card')
+                        ? `Saldo: ${formatCurrency(acc.balance || 0)} | Lim. ${formatCurrency(acc.creditLimit || 0)}`
                         : `Saldo: ${formatCurrency(acc.balance || 0)}`;
                       return (
                         <option key={acc.id} value={acc.id}>
-                          {acc.institutionName} • {acc.name} ({typeLabel} • {limitOrBalance})
+                          {acc.institutionName} • {acc.name} ({typeLabel}{hasCardBadge} — {limitOrBalance})
                         </option>
                       );
                     })}
@@ -1045,22 +955,86 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 )}
               </div>
 
+              {/* Payment Method Selector if Account has Coupled Credit Card */}
+              {hasAccountCard && selectedAccount?.type !== 'credit_card' && (
+                <div style={{ marginTop: '0.65rem', marginBottom: '0.75rem' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                    Forma de Lançamento nesta Conta:
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('debit')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: '6px',
+                        border: paymentMethod === 'debit' ? '2px solid var(--color-primary)' : '1px solid rgba(0,0,0,0.12)',
+                        background: paymentMethod === 'debit' ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-surface)',
+                        color: paymentMethod === 'debit' ? 'var(--color-primary)' : 'var(--text-secondary)',
+                        fontWeight: paymentMethod === 'debit' ? 700 : 500,
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Landmark size={14} />
+                      <span>Saldo em Conta (Débito)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod('credit');
+                        setType('ko');
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: '6px',
+                        border: paymentMethod === 'credit' ? '2px solid #820ad1' : '1px solid rgba(0,0,0,0.12)',
+                        background: paymentMethod === 'credit' ? 'rgba(130, 10, 209, 0.12)' : 'var(--bg-surface)',
+                        color: paymentMethod === 'credit' ? '#820ad1' : 'var(--text-secondary)',
+                        fontWeight: paymentMethod === 'credit' ? 700 : 500,
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <CreditCard size={14} />
+                      <span>Cartão de Crédito (Fatura)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Informative Account Limit & Rules Box */}
               {selectedAccount ? (
                 <div
                   className={`cf-tx-account-callout ${
-                    selectedAccount.type === 'credit_card' ? 'credit-card' : 'liquid'
+                    isCreditMode ? 'credit-card' : 'liquid'
                   } ${willExceedSelectedLimit ? 'warning' : ''}`}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      {selectedAccount.type === 'credit_card' ? (
+                      {isCreditMode ? (
                         <CreditCard size={15} color="#820ad1" />
                       ) : (
                         <Landmark size={15} color="var(--color-primary)" />
                       )}
                       <strong style={{ fontSize: '0.85rem' }}>
                         {selectedAccount.institutionName} • {selectedAccount.name}
+                        {hasAccountCard && (
+                          <span style={{ fontSize: '0.74rem', marginLeft: '6px', color: isCreditMode ? '#820ad1' : 'var(--color-primary)', fontWeight: 600 }}>
+                            ({isCreditMode ? '💳 Cartão de Crédito' : '🏦 Saldo em Conta'})
+                          </span>
+                        )}
                       </strong>
                     </div>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
@@ -1068,7 +1042,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     </span>
                   </div>
 
-                  {selectedAccount.type === 'credit_card' ? (
+                  {isCreditMode ? (
                     <div>
                       <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
                         <span>
@@ -1093,9 +1067,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       <span>
                         Saldo Inicial/Atual: <strong style={{ color: '#10b981' }}>{formatCurrency(selectedAccount.balance || 0)}</strong>
                       </span>
-                      {selectedAccount.creditLimit && selectedAccount.creditLimit > 0 ? (
-                        <span style={{ marginLeft: '0.75rem' }}>
-                          Cheque Especial: <strong>{formatCurrency(selectedAccount.creditLimit)}</strong>
+                      {hasAccountCard && selectedAccount.creditLimit && selectedAccount.creditLimit > 0 ? (
+                        <span style={{ marginLeft: '0.75rem', color: '#820ad1', fontWeight: 600 }}>
+                          💳 Cartão Vinculado: {formatCurrency(selectedAccount.creditLimit)}
                         </span>
                       ) : null}
                     </div>
@@ -1149,308 +1123,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 2: Definir Limites de Cartão por Banco */}
-      {showLimitsModal && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowLimitsModal(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="card-limits-modal-title"
-        >
-          <div
-            className="modal-content cf-limits-modal-content"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '640px' }}
-          >
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                <CreditCard size={20} color="var(--color-primary)" />
-                <div>
-                  <h3 id="card-limits-modal-title" style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
-                    Limites de Cartão por Instituição
-                  </h3>
-                  <small style={{ color: 'var(--text-muted)' }}>
-                    Defina e ajuste o limite de crédito aprovado para cada um dos seus bancos.
-                  </small>
-                </div>
-              </div>
-              <button
-                className="btn-close"
-                onClick={() => setShowLimitsModal(false)}
-                title="Fechar modal"
-                aria-label="Fechar modal de limites de cartão"
-              >
-                <X size={16} aria-hidden="true" />
-              </button>
-            </div>
 
-            <div className="cf-limits-modal-body">
-              {/* Consolidated Summary Banner */}
-              <div className="cf-limits-summary-banner">
-                <div className="cf-limits-banner-top">
-                  <span className="cf-limits-banner-title">Consolidado Geral de Crédito</span>
-                  <span className="cf-limits-banner-pct">{consolidatedUsagePercent}% Utilizado</span>
-                </div>
-
-                <div className="cf-limits-progress-track">
-                  <div
-                    className="cf-limits-progress-fill"
-                    style={{
-                      width: `${consolidatedUsagePercent}%`,
-                      backgroundColor:
-                        consolidatedUsagePercent >= 85
-                          ? '#ef4444'
-                          : consolidatedUsagePercent >= 60
-                          ? '#f59e0b'
-                          : '#10b981',
-                    }}
-                  />
-                </div>
-
-                <div className="cf-limits-banner-metrics">
-                  <div className="cf-limits-metric-item">
-                    <span className="cf-limits-metric-lbl">Limite Total Aprovado</span>
-                    <span className="cf-limits-metric-val mono-number">
-                      {formatCurrency(consolidatedTotalLimit)}
-                    </span>
-                  </div>
-                  <div className="cf-limits-metric-item">
-                    <span className="cf-limits-metric-lbl">Faturas Atuais (Usado)</span>
-                    <span className="cf-limits-metric-val mono-number" style={{ color: '#f87171' }}>
-                      {formatCurrency(consolidatedUsedLimit)}
-                    </span>
-                  </div>
-                  <div className="cf-limits-metric-item">
-                    <span className="cf-limits-metric-lbl">Limite Total Disponível</span>
-                    <span className="cf-limits-metric-val mono-number" style={{ color: '#34d399' }}>
-                      {formatCurrency(consolidatedAvailableLimit)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bank Cards List */}
-              <div className="cf-bank-limits-list">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                    Bancos Cadastrados ({bankConfigs.length})
-                  </h4>
-                  <button
-                    type="button"
-                    className="cf-btn-secondary"
-                    onClick={() => setShowAddNewBankPanel(!showAddNewBankPanel)}
-                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-                  >
-                    <Plus size={14} />
-                    <span>{showAddNewBankPanel ? 'Cancelar' : 'Cadastrar Novo Banco'}</span>
-                  </button>
-                </div>
-
-                {/* Form to add new bank inside limits modal */}
-                {showAddNewBankPanel && (
-                  <form onSubmit={handleCreateNewBank} className="cf-add-bank-panel">
-                    <h5 style={{ margin: '0 0 0.6rem 0', fontSize: '0.85rem', fontWeight: 700 }}>
-                      Adicionar Nova Instituição
-                    </h5>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.6rem' }}>
-                      <div>
-                        <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Nome do Banco</label>
-                        <input
-                          type="text"
-                          placeholder="Ex: BTG Pactual, Safra, XP..."
-                          value={newBankName}
-                          onChange={(e) => setNewBankName(e.target.value)}
-                          className="cf-input"
-                          required
-                          autoFocus
-                          style={{ fontSize: '0.82rem', padding: '0.35rem 0.6rem' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Limite do Cartão (R$)</label>
-                        <input
-                          type="number"
-                          step="100"
-                          min="0"
-                          value={newBankLimit}
-                          onChange={(e) => setNewBankLimit(e.target.value)}
-                          className="cf-input mono-number"
-                          required
-                          style={{ fontSize: '0.82rem', padding: '0.35rem 0.6rem' }}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.5rem' }}>
-                      <div>
-                        <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Dia Fechamento</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="31"
-                          value={newBankClosing}
-                          onChange={(e) => setNewBankClosing(e.target.value)}
-                          className="cf-input mono-number"
-                          style={{ fontSize: '0.82rem', padding: '0.35rem 0.6rem' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Dia Vencimento</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="31"
-                          value={newBankDue}
-                          onChange={(e) => setNewBankDue(e.target.value)}
-                          className="cf-input mono-number"
-                          style={{ fontSize: '0.82rem', padding: '0.35rem 0.6rem' }}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: '0.6rem' }}>
-                      <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Cor de Identificação</label>
-                      <div className="cf-color-palette-row">
-                        {PRESET_COLORS.map((c) => (
-                          <div
-                            key={c}
-                            className={`cf-color-dot-choice ${newBankColor === c ? 'selected' : ''}`}
-                            style={{ backgroundColor: c }}
-                            onClick={() => setNewBankColor(c)}
-                            title={c}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-sm"
-                        onClick={() => setShowAddNewBankPanel(false)}
-                      >
-                        Cancelar
-                      </button>
-                      <button type="submit" className="cf-btn-primary-blue" style={{ fontSize: '0.78rem' }}>
-                        <Plus size={14} />
-                        <span>Cadastrar Banco</span>
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-                {/* List of existing bank limit cards */}
-                {bankConfigs.map((b) => {
-                  const invoice = getBankCardInvoice(b.name);
-                  const limit = b.creditCardLimit || 0;
-                  const available = Math.max(0, limit - invoice);
-                  const usagePct = limit > 0 ? Math.min(100, Math.round((invoice / limit) * 100)) : 0;
-
-                  return (
-                    <div key={b.id} className="cf-bank-limit-card">
-                      <div className="cf-bank-limit-header">
-                        <div className="cf-bank-limit-title-wrap">
-                          <div className="cf-bank-avatar" style={{ backgroundColor: b.color }}>
-                            {b.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <h4 className="cf-bank-limit-name">{b.name}</h4>
-                            <span className="cf-bank-limit-sub">
-                              Fechamento dia {b.closingDay || 10} • Vencimento dia {b.dueDay || 17}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="cf-bank-limit-controls">
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                            <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '0.15rem' }}>
-                              Limite do Cartão
-                            </label>
-                            <input
-                              type="number"
-                              step="100"
-                              min="0"
-                              value={limit}
-                              onChange={(e) => handleUpdateSingleLimit(b.id, Number(e.target.value) || 0)}
-                              className="cf-bank-limit-input mono-number"
-                              title={`Editar limite do cartão para ${b.name}`}
-                            />
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                            <button
-                              type="button"
-                              className="cf-quick-adjust-btn"
-                              onClick={() => handleQuickAdjustLimit(b.id, 500)}
-                              title="Aumentar R$ 500 no limite"
-                            >
-                              +500
-                            </button>
-                            <button
-                              type="button"
-                              className="cf-quick-adjust-btn"
-                              onClick={() => handleQuickAdjustLimit(b.id, 1000)}
-                              title="Aumentar R$ 1.000 no limite"
-                            >
-                              +1k
-                            </button>
-                          </div>
-
-                          {bankConfigs.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteBank(b.id, b.name)}
-                              className="tx-delete-btn"
-                              title={`Remover ${b.name}`}
-                              style={{ marginLeft: '0.25rem' }}
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Usage Progress Bar */}
-                      <div className="cf-limits-progress-track">
-                        <div
-                          className="cf-limits-progress-fill"
-                          style={{
-                            width: `${usagePct}%`,
-                            backgroundColor: usagePct >= 85 ? '#ef4444' : usagePct >= 60 ? '#f59e0b' : '#10b981',
-                          }}
-                        />
-                      </div>
-
-                      <div className="cf-bank-limit-stats">
-                        <span className="cf-stat-used">
-                          Fatura atual: <strong>{formatCurrency(invoice)}</strong> ({usagePct}%)
-                        </span>
-                        <span className="cf-stat-avail">
-                          Disponível: <strong>{formatCurrency(available)}</strong>
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div style={{ padding: '0.9rem 1.25rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="cf-btn-primary-blue"
-                onClick={() => {
-                  audioManager.playSuccessChime();
-                  setShowLimitsModal(false);
-                }}
-              >
-                Concluir & Salvar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MODAL 3: Confirmação de Exclusão de Lançamento */}
       {txToDelete && (
