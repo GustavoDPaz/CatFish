@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { GeminiAgentService, ChatMessage } from '../services/geminiAgent.js';
-import { sanitizePromptInput } from '../security/sanitizer.js';
+import { validatePromptGuardrails } from '../security/sanitizer.js';
 
 export async function aiRoutes(app: FastifyInstance) {
   const getUserId = (req: FastifyRequest): string => {
@@ -22,26 +22,25 @@ export async function aiRoutes(app: FastifyInstance) {
       const userId = getUserId(req);
       const body = req.body as { message: string; history?: ChatMessage[] };
 
-      if (!body?.message || typeof body.message !== 'string') {
-        return reply.status(400).send({ error: 'Mensagem inválida ou ausente.' });
-      }
-
-      if (body.message.length > 1000) {
-        return reply.status(400).send({
-          error: 'Mensagem excede o limite máximo permitido de 1000 caracteres.',
+      // 1. Pré-Validação e Guardrails Locais no Backend (Custo Zero de Tokens)
+      // Bloqueia Prompt Injections, Jailbreak, dados de cartão/senhas e limita a 500 chars
+      const guardResult = validatePromptGuardrails(body?.message);
+      if (!guardResult.allowed) {
+        return reply.send({
+          reply: guardResult.refusalMessage,
+          toolsExecuted: [],
+          timestamp: new Date().toISOString(),
         });
       }
 
-      const cleanMessage = sanitizePromptInput(body.message, 800);
-      if (!cleanMessage) {
-        return reply.status(400).send({ error: 'Mensagem não pode ser vazia ou conter apenas caracteres de controle.' });
-      }
+      const cleanMessage = guardResult.sanitizedMessage!;
 
       try {
         const response = await GeminiAgentService.handleChat(userId, cleanMessage, body.history || []);
         return reply.send({
           reply: response.text,
           toolsExecuted: response.toolsExecuted,
+          createdTransaction: response.createdTransaction,
           timestamp: new Date().toISOString(),
         });
       } catch (err) {

@@ -178,11 +178,11 @@ export class OpenFinanceService {
    */
   static async deleteConnection(userId: string, connectionId: string): Promise<boolean> {
     if (isDbLive()) {
-      await query(`DELETE FROM bank_connections WHERE (id = $1 OR item_id = $1) AND user_id = $2`, [connectionId, userId]);
+      await query(`DELETE FROM bank_connections WHERE (id::text = $1 OR item_id = $1) AND user_id = $2`, [connectionId, userId]);
       return true;
     }
     const userConns = memoryStore.connections.get(userId) || [];
-    memoryStore.connections.set(userId, userConns.filter((c) => c.id !== connectionId && c.item_id !== connectionId));
+    memoryStore.connections.set(userId, userConns.filter((c) => c.id !== connectionId && c.item_id !== connectionId && c.itemId !== connectionId));
     const userAccounts = memoryStore.accounts.get(userId) || [];
     memoryStore.accounts.set(userId, userAccounts.filter((a) => a.bank_connection_id !== connectionId));
     return true;

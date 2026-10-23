@@ -90,6 +90,8 @@ async function main() {
   try {
     const address = await app.listen({ port: env.PORT, host: env.HOST });
     console.log(`[CatFish Server] Servidor backend ativo em ${address}`);
+    const hasGeminiKey = Boolean(env.GEMINI_API_KEY && env.GEMINI_API_KEY.trim() !== '' && !env.GEMINI_API_KEY.includes('your_gemini'));
+    console.log(`[CatFish Server] Status da IA (Gemini): ${hasGeminiKey ? '✅ Ativo (Chave configurada)' : '⚠️ Desativado (GEMINI_API_KEY ausente ou placeholder)'}`);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

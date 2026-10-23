@@ -1,6 +1,18 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Garante carregamento do .env tanto na raiz quanto em server/ independente de process.cwd()
+const rootDir = path.resolve(__dirname, '../../../');
+const serverDir = path.resolve(__dirname, '../../');
+
+dotenv.config({ path: path.resolve(rootDir, '.env') });
+dotenv.config({ path: path.resolve(serverDir, '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config();
 
 const envSchema = z.object({
@@ -24,7 +36,7 @@ const envSchema = z.object({
 
   // Google Gemini API Key
   GEMINI_API_KEY: z.string().default(''),
-  GEMINI_MODEL: z.string().default('gemini-2.0-flash'),
+  GEMINI_MODEL: z.string().default('gemini-3.8-flash'),
 
   // JWT Secret
   JWT_SECRET: z.string().min(16).default('catfish_super_jwt_secret_dev_key_2026!'),

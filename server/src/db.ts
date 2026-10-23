@@ -77,6 +77,24 @@ export async function initDb(): Promise<boolean> {
       ALTER TABLE accounts ADD COLUMN IF NOT EXISTS due_day INT;
       ALTER TABLE accounts ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#10b981';
       ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+      CREATE TABLE IF NOT EXISTS transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR(100) NOT NULL,
+        account_id UUID REFERENCES accounts(id) ON DELETE CASCADE,
+        category_id UUID,
+        amount NUMERIC(14, 2) NOT NULL,
+        transaction_date DATE NOT NULL,
+        description VARCHAR(255) NOT NULL,
+        type VARCHAR(20) NOT NULL,
+        raw_provider_category VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'SETTLED',
+        external_provider_id VARCHAR(150),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, transaction_date DESC);
     `);
 
     client.release();

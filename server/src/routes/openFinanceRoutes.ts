@@ -47,7 +47,15 @@ export async function openFinanceRoutes(app: FastifyInstance) {
   // 3. List active connections for user
   app.get('/connections', async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = getUserId(req);
-    const connections = await OpenFinanceService.getUserConnections(userId);
+    const rawConnections = await OpenFinanceService.getUserConnections(userId);
+    const connections = rawConnections.map((c: any) => ({
+      ...c,
+      institutionName: c.institution_name || c.institutionName || 'Banco Conectado',
+      institutionId: c.institution_id || c.institutionId,
+      itemId: c.item_id || c.itemId,
+      institutionLogoUrl: c.institution_logo_url || c.institutionLogoUrl,
+      lastSyncedAt: c.last_synced_at || c.lastSyncedAt,
+    }));
     return reply.send({ connections });
   });
 

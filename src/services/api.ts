@@ -1,8 +1,9 @@
-import type { ConsolidatedBalances, CreditCardsSummary, BankConnection, ChatMessage } from '../types';
+import type { ConsolidatedBalances, CreditCardsSummary, BankConnection, ChatMessage, Transaction } from '../types';
+import { storage } from '../utils/storage';
 
 const getApiBase = () => {
   const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim() !== '' && !envUrl.includes('localhost:3001')) {
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim() !== '') {
     return `${envUrl.replace(/\/+$/, '')}/api`;
   }
   return '/api';
@@ -84,7 +85,16 @@ export const api = {
       const res = await fetch(`${API_BASE}/open-finance/connections`);
       if (res.ok) {
         const data = await res.json();
-        return data.connections;
+        return (data.connections || []).map((c: any) => ({
+          id: c.id,
+          provider: c.provider,
+          itemId: c.itemId || c.item_id,
+          institutionId: c.institutionId || c.institution_id,
+          institutionName: c.institutionName || c.institution_name || 'Banco Conectado',
+          institutionLogoUrl: c.institutionLogoUrl || c.institution_logo_url,
+          status: c.status || 'ACTIVE',
+          lastSyncedAt: c.lastSyncedAt || c.last_synced_at,
+        }));
       }
     } catch {}
     return localFallbackState.connections;
@@ -175,21 +185,35 @@ export const api = {
   /**
    * Send user message to Gemini Agent (Function Calling)
    */
-  async sendChatMessage(message: string, history: ChatMessage[] = []): Promise<{ reply: string; toolsExecuted?: string[] }> {
+  async sendChatMessage(message: string, history: ChatMessage[] = []): Promise<{ 
+    reply: string; 
+    toolsExecuted?: string[];
+    createdTransaction?: Transaction;
+  }> {
     try {
       const formattedHistory = history.map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         content: m.content,
       }));
 
+      const activeUser = storage.getActiveUser();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (activeUser?.id) {
+        headers['x-user-id'] = activeUser.id;
+      }
+
       const res = await fetch(`${API_BASE}/ai/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ message, history: formattedHistory }),
       });
 
       if (res.ok) {
-        return (await res.json()) as { reply: string; toolsExecuted: string[] };
+        return (await res.json()) as { 
+          reply: string; 
+          toolsExecuted: string[];
+          createdTransaction?: Transaction;
+        };
       }
 
       const errData = await res.json().catch(() => null);

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, Transaction } from '../types';
 import { api } from '../services/api';
 import { Bot, Send, Sparkles, X, Wrench, RefreshCw, ChevronRight } from 'lucide-react';
 
@@ -143,6 +143,7 @@ interface AiAssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   userName?: string;
+  onTransactionCreated?: (transaction: Transaction) => void;
 }
 
 const QUICK_PROMPTS = [
@@ -156,6 +157,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   isOpen,
   onClose,
   userName = 'Gustavo',
+  onTransactionCreated,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -194,6 +196,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         return 'Analisando lançamentos e extrato do período...';
       case 'get_spending_limits_and_goals':
         return 'Conferindo tetos de gastos e metas...';
+      case 'create_transaction':
+        return 'Registrando novo lançamento na conta...';
       default:
         return 'Acessando dados financeiros seguros...';
     }
@@ -221,6 +225,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       if (response.toolsExecuted && response.toolsExecuted.length > 0) {
         setCurrentToolExecuting(getToolLabel(response.toolsExecuted[0]));
         await new Promise((r) => setTimeout(r, 450));
+      }
+
+      if (response.createdTransaction && onTransactionCreated) {
+        onTransactionCreated(response.createdTransaction);
       }
 
       const assistantMsg: ChatMessage = {
