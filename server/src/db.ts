@@ -95,6 +95,30 @@ export async function initDb(): Promise<boolean> {
       );
 
       CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, transaction_date DESC);
+
+      CREATE TABLE IF NOT EXISTS app_users (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        avatar_url TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      INSERT INTO app_users (id, name, email, password)
+      VALUES ('usr-felipe-default', 'Felipe', 'felipe@catfish.finance', '123')
+      ON CONFLICT (email) DO NOTHING;
+
+      CREATE TABLE IF NOT EXISTS user_app_storage (
+        user_id VARCHAR(100) NOT NULL,
+        data_key VARCHAR(50) NOT NULL,
+        payload JSONB NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (user_id, data_key)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_user_app_storage_user ON user_app_storage(user_id);
     `);
 
     client.release();

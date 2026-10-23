@@ -9,7 +9,7 @@ services:
       - "5173:5173"
     environment:
       - NODE_ENV=production
-      - VITE_API_URL=
+      - VITE_API_PROXY_TARGET=http://catfish-api:3001
     depends_on:
       - catfish-api
 
@@ -30,8 +30,10 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - HOST=0.0.0.0
-      - DATABASE_URL=postgres://catfish_user:catfish_secure_password@postgres:5432/catfish_db
+      - DATABASE_URL=postgres://${POSTGRES_USER:-catfish_user}:${POSTGRES_PASSWORD:-pU09OeG7qDthzND48JpKwc46rVtlCZM6}@postgres:5432/${POSTGRES_DB:-catfish_db}
       - CORS_ORIGIN=http://localhost:5173
+      - APP_MASTER_ENCRYPTION_KEY=${APP_MASTER_ENCRYPTION_KEY:-B8edlMaWUgoma9CTGDN4RJpgH8SwiiLe}
+      - JWT_SECRET=${JWT_SECRET:-4hWCrY96JBAJxcBsy8ph2s2KuGzaUho4}
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,16 +43,16 @@ services:
     container_name: catfish-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: catfish_db
-      POSTGRES_USER: catfish_user
-      POSTGRES_PASSWORD: catfish_secure_password
+      POSTGRES_DB: ${POSTGRES_DB:-catfish_db}
+      POSTGRES_USER: ${POSTGRES_USER:-catfish_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pU09OeG7qDthzND48JpKwc46rVtlCZM6}
     ports:
       - "5432:5432"
     volumes:
       - catfish_pgdata:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -U catfish_user -d catfish_db"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER:-catfish_user} -d ${POSTGRES_DB:-catfish_db}"]
       interval: 5s
       timeout: 5s
       retries: 10

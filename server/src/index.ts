@@ -8,6 +8,8 @@ import { startBackgroundSyncWorker, stopBackgroundSyncWorker } from './services/
 import { openFinanceRoutes } from './routes/openFinanceRoutes.js';
 import { aiRoutes } from './routes/aiRoutes.js';
 import { webhookRoutes } from './routes/webhookRoutes.js';
+import { userDataRoutes } from './routes/userDataRoutes.js';
+import { authRoutes } from './routes/authRoutes.js';
 
 const app = Fastify({
   logger: {
@@ -77,6 +79,8 @@ async function main() {
   });
 
   // 5. Register Routes
+  await app.register(authRoutes, { prefix: '/api/auth' });
+  await app.register(userDataRoutes, { prefix: '/api/user-data' });
   await app.register(openFinanceRoutes, { prefix: '/api/open-finance' });
   await app.register(aiRoutes, { prefix: '/api/ai' });
   await app.register(webhookRoutes, { prefix: '/api/webhooks' });
