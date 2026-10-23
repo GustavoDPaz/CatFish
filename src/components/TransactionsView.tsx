@@ -443,6 +443,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 placeholder="Buscar por lançamento, banco ou categoria..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                maxLength={100}
                 className="clean-search-input"
                 style={{ width: '100%', paddingLeft: '2.2rem', paddingRight: searchQuery ? '2.2rem' : '0.75rem' }}
               />
@@ -759,6 +760,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   required
+                  maxLength={120}
                   className="cf-input"
                   autoFocus
                 />
@@ -773,6 +775,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     type="number"
                     step="0.01"
                     min="0.01"
+                    max="999999999"
                     placeholder="0,00"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
@@ -836,12 +839,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         placeholder="Nome do banco (ex: BTG)"
                         value={inlineBankName}
                         onChange={(e) => setInlineBankName(e.target.value)}
+                        maxLength={50}
                         className="cf-input"
                         style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
                       />
                       <div style={{ display: 'flex', gap: '0.35rem' }}>
                         <input
                           type="number"
+                          min="0"
+                          max="999999999"
                           placeholder="Limite Cartão (R$)"
                           value={inlineBankLimit}
                           onChange={(e) => setInlineBankLimit(e.target.value)}
@@ -1101,6 +1107,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 <input
                   id="tx-form-notes"
                   type="text"
+                  maxLength={250}
                   placeholder="Detalhes ou anotações..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}

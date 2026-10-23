@@ -228,6 +228,8 @@ export const EnRadarView: React.FC<EnRadarViewProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                         <input
                           type="number"
+                          min="0"
+                          max="999999999"
                           value={editLimitVal}
                           onChange={(e) => setEditLimitVal(e.target.value)}
                           className="cf-input mono-number"
@@ -301,6 +303,7 @@ export const EnRadarView: React.FC<EnRadarViewProps> = ({
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
                   required
+                  maxLength={50}
                   className="cf-input"
                   autoFocus
                 />
@@ -312,6 +315,8 @@ export const EnRadarView: React.FC<EnRadarViewProps> = ({
                   id="budget-cat-limit"
                   type="number"
                   step="0.01"
+                  min="0.01"
+                  max="999999999"
                   placeholder="Ex: 500,00"
                   value={newCatLimit}
                   onChange={(e) => setNewCatLimit(e.target.value)}

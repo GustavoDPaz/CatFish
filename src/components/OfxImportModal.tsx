@@ -326,6 +326,7 @@ export const OfxImportModal: React.FC<OfxImportModalProps> = ({
                     <input
                       id="ofx-target-account"
                       type="text"
+                      maxLength={50}
                       className="clean-search-input"
                       style={{ paddingLeft: '0.85rem', width: '220px' }}
                       value={targetAccount}

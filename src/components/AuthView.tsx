@@ -208,6 +208,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     required
+                    maxLength={100}
                     autoFocus
                   />
                 </div>
@@ -229,6 +230,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     required
+                    maxLength={64}
                   />
                   <button
                     type="button"
@@ -299,6 +301,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
                     value={registerName}
                     onChange={(e) => setRegisterName(e.target.value)}
                     required
+                    maxLength={60}
                     autoFocus
                   />
                 </div>
@@ -318,6 +321,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
                     required
+                    maxLength={100}
                   />
                 </div>
               </div>
@@ -337,6 +341,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
                     onChange={(e) => setRegisterPassword(e.target.value)}
                     required
                     minLength={3}
+                    maxLength={64}
                   />
                   <button
                     type="button"
@@ -364,6 +369,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
                     value={registerConfirmPassword}
                     onChange={(e) => setRegisterConfirmPassword(e.target.value)}
                     required
+                    maxLength={64}
                   />
                 </div>
               </div>

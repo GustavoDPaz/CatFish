@@ -367,6 +367,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           <input
             ref={inputRef}
             type="text"
+            maxLength={500}
             className="cf-ai-input"
             placeholder="Pergunte sobre saldo, cartões, extrato..."
             value={inputValue}

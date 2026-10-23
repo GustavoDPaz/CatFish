@@ -409,6 +409,7 @@ export const AprManagerView: React.FC<AprManagerViewProps> = ({
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   required
+                  maxLength={100}
                   className="cf-input"
                   autoFocus
                 />
@@ -421,6 +422,8 @@ export const AprManagerView: React.FC<AprManagerViewProps> = ({
                     id="new-debt-principal"
                     type="number"
                     step="0.01"
+                    min="0.01"
+                    max="999999999"
                     placeholder="0,00"
                     value={newPrincipal}
                     onChange={(e) => setNewPrincipal(e.target.value)}
@@ -435,10 +438,10 @@ export const AprManagerView: React.FC<AprManagerViewProps> = ({
                     id="new-debt-installments"
                     type="number"
                     min="1"
-                    max="72"
+                    max="96"
                     step="1"
                     value={newInstallments}
-                    onChange={(e) => setNewInstallments(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => setNewInstallments(Math.max(1, Math.min(96, parseInt(e.target.value) || 1)))}
                     required
                     className="cf-input mono-number"
                   />
@@ -544,6 +547,7 @@ export const AprManagerView: React.FC<AprManagerViewProps> = ({
                 <input
                   id="new-debt-notes"
                   type="text"
+                  maxLength={250}
                   placeholder="Lembrete ou detalhes da compra..."
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}

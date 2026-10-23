@@ -634,7 +634,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                   type="number"
                   step="0.01"
                   min="0.01"
-                  max={contributionMode === 'withdraw' ? (contributionCard.currentAmount || 0) : undefined}
+                  max={contributionMode === 'withdraw' ? (contributionCard.currentAmount || 0) : 999999999}
                   value={contributionAmount}
                   onChange={(e) => setContributionAmount(e.target.value)}
                   placeholder="0,00"
@@ -846,6 +846,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
 
                   <input
                     type="text"
+                    maxLength={500}
                     placeholder="Ou cole uma URL de imagem (https://...)"
                     value={formImageUrl}
                     onChange={(e) => setFormImageUrl(e.target.value)}
@@ -881,6 +882,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                   <label>Nome / Título da Meta</label>
                   <input
                     type="text"
+                    maxLength={100}
                     placeholder="Ex: Viagem, Carro Novo, Reserva..."
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
@@ -894,6 +896,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                   <label>Nº / Identificador</label>
                   <input
                     type="text"
+                    maxLength={10}
                     placeholder="001"
                     value={formCardNo}
                     onChange={(e) => setFormCardNo(e.target.value)}
@@ -941,6 +944,8 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                   <input
                     type="number"
                     step="0.01"
+                    min="0"
+                    max="999999999"
                     placeholder="Ex: 5000,00"
                     value={formTargetAmount}
                     onChange={(e) => setFormTargetAmount(e.target.value)}
@@ -953,6 +958,8 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                   <input
                     type="number"
                     step="0.01"
+                    min="0"
+                    max="999999999"
                     placeholder="Ex: 1200,00"
                     value={formCurrentAmount}
                     onChange={(e) => setFormCurrentAmount(e.target.value)}
@@ -966,6 +973,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                 <label>Descrição</label>
                 <input
                   type="text"
+                  maxLength={250}
                   placeholder="Ex: Criar uma reserva segura para emergências familiares..."
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
@@ -978,6 +986,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                 <label>Critério de Sucesso / Objetivo</label>
                 <input
                   type="text"
+                  maxLength={250}
                   placeholder="Ex: Juntar R$ 5.000 ou quitar todas as faturas até Dezembro"
                   value={formObjective}
                   onChange={(e) => setFormObjective(e.target.value)}
@@ -990,6 +999,7 @@ export const GreedIslandView: React.FC<GreedIslandViewProps> = ({
                 <label>Recompensa / Sensação ao Atingir (Opcional)</label>
                 <input
                   type="text"
+                  maxLength={150}
                   placeholder="Ex: Segurança, tranquilidade financeira, comemoração..."
                   value={formRewardText}
                   onChange={(e) => setFormRewardText(e.target.value)}

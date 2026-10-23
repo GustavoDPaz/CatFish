@@ -504,6 +504,7 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
               <div className="cf-of-custom-input-group">
                 <input
                   type="text"
+                  maxLength={60}
                   className="cf-of-input"
                   placeholder="Ex: BTG Pactual, Banco Safra, Sicredi, XP, C6..."
                   value={customBankName}
