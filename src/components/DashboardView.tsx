@@ -59,12 +59,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const getAccountLiveBalance = (acc: FinancialAccount) => {
     const net = transactions
-      .filter((t) =>
-        t.account === acc.name ||
-        (acc.type === 'checking' && t.account === 'Conta Corrente' && t.bankName?.toLowerCase() === acc.institutionName.toLowerCase()) ||
-        (acc.type === 'wallet' && t.account === 'Carteira') ||
-        (acc.type === 'emergency_fund' && (t.account === 'Reserva de Emergência' || t.type === 'reserva' || t.type === 'ten'))
-      )
+      .filter((t) => {
+        if (t.paymentMethod === 'credit' || t.account === 'Cartão de Crédito') {
+          return false;
+        }
+        return (
+          t.account === acc.name ||
+          (acc.type === 'checking' && t.account === 'Conta Corrente' && t.bankName?.toLowerCase() === acc.institutionName.toLowerCase()) ||
+          (acc.type === 'wallet' && t.account === 'Carteira') ||
+          (acc.type === 'emergency_fund' && (t.account === 'Reserva de Emergência' || t.type === 'reserva' || t.type === 'ten'))
+        );
+      })
       .reduce((sum, t) => {
         if (t.type === 'receita' || t.type === 'ren' || t.type === 'reserva' || t.type === 'ten') return sum + t.amount;
         if (t.type === 'despesa' || t.type === 'ko') return sum - t.amount;

@@ -78,6 +78,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [formAccountName, setFormAccountName] = useState('');
   const [formInstitution, setFormInstitution] = useState('');
   const [formType, setFormType] = useState<AccountType>('checking');
+  const [formHasCreditCard, setFormHasCreditCard] = useState(false);
   const [formBalance, setFormBalance] = useState<string>('0');
   const [formCreditLimit, setFormCreditLimit] = useState<string>('0');
   const [formClosingDay, setFormClosingDay] = useState<string>('10');
@@ -93,9 +94,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     .filter((a) => a.type === 'checking')
     .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
 
-  const totalCreditLimit = accountsList
-    .filter((a) => a.type === 'credit_card')
-    .reduce((sum, a) => sum + (Number(a.creditLimit) || 0), 0);
+  const totalCreditLimit = accountsList.reduce((sum, a) => {
+    if ((a.type === 'checking' && a.hasCreditCard) || a.type === 'credit_card') {
+      return sum + (Number(a.creditLimit) || 0);
+    }
+    return sum;
+  }, 0);
 
   const totalReserveBalance = accountsList
     .filter((a) => a.type === 'emergency_fund')
@@ -115,6 +119,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setFormAccountName('');
     setFormInstitution('');
     setFormType('checking');
+    setFormHasCreditCard(false);
     setFormBalance('0');
     setFormCreditLimit('0');
     setFormClosingDay('10');
@@ -129,18 +134,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setFormAccountName('Conta Corrente Principal');
     setFormInstitution('Nubank');
     setFormType('checking');
+    setFormHasCreditCard(true);
     setFormBalance('1000');
-    setFormCreditLimit('0');
-    setFormNotes('Conta para movimentação e transferências diárias.');
+    setFormCreditLimit('3500');
+    setFormClosingDay('5');
+    setFormDueDay('12');
+    setFormColor('#820AD1');
+    setFormNotes('Conta para movimentação com cartão de crédito integrado.');
   };
 
   const handleOpenEditAccount = (acc: FinancialAccount) => {
     setEditingAccountId(acc.id);
     setFormAccountName(acc.name);
     setFormInstitution(acc.institutionName);
-    setFormType(acc.type);
+    const resolvedType = acc.type === 'credit_card' ? 'checking' : acc.type;
+    setFormType(resolvedType);
+    setFormHasCreditCard(Boolean(acc.hasCreditCard || acc.type === 'credit_card' || (acc.type === 'checking' && (acc.creditLimit || 0) > 0)));
     setFormBalance(String(acc.balance ?? 0));
-    setFormCreditLimit(String(acc.creditLimit ?? 0));
+    setFormCreditLimit(String(acc.creditLimit ?? 3500));
     setFormClosingDay(String(acc.closingDay ?? 10));
     setFormDueDay(String(acc.dueDay ?? 17));
     setFormColor(acc.color || '#820AD1');
@@ -157,6 +168,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     const parsedClosing = parseInt(formClosingDay, 10) || 10;
     const parsedDue = parseInt(formDueDay, 10) || 17;
 
+    const isChecking = formType === 'checking';
+    const effectiveHasCard = isChecking ? formHasCreditCard : formType === 'credit_card';
+
     if (editingAccountId) {
       // Update existing account
       setAccountsList((prev) =>
@@ -168,9 +182,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               institutionName: formInstitution.trim(),
               type: formType,
               balance: parsedBalance,
-              creditLimit: parsedCreditLimit,
-              closingDay: formType === 'credit_card' ? parsedClosing : undefined,
-              dueDay: formType === 'credit_card' ? parsedDue : undefined,
+              hasCreditCard: effectiveHasCard,
+              creditLimit: effectiveHasCard ? parsedCreditLimit : 0,
+              closingDay: effectiveHasCard ? parsedClosing : undefined,
+              dueDay: effectiveHasCard ? parsedDue : undefined,
               color: formColor,
               notes: formNotes.trim(),
             };
@@ -186,9 +201,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         institutionName: formInstitution.trim(),
         type: formType,
         balance: parsedBalance,
-        creditLimit: parsedCreditLimit,
-        closingDay: formType === 'credit_card' ? parsedClosing : undefined,
-        dueDay: formType === 'credit_card' ? parsedDue : undefined,
+        hasCreditCard: effectiveHasCard,
+        creditLimit: effectiveHasCard ? parsedCreditLimit : 0,
+        closingDay: effectiveHasCard ? parsedClosing : undefined,
+        dueDay: effectiveHasCard ? parsedDue : undefined,
         color: formColor,
         notes: formNotes.trim(),
       };
@@ -440,20 +456,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       <label>Tipo de Conta</label>
                       <select
                         value={formType}
-                        onChange={(e) => setFormType(e.target.value as AccountType)}
+                        onChange={(e) => {
+                          const newType = e.target.value as AccountType;
+                          setFormType(newType);
+                          if (newType !== 'checking') {
+                            setFormHasCreditCard(false);
+                          }
+                        }}
                         className="cf-select"
                       >
-                        <option value="checking">Conta Corrente</option>
-                        <option value="credit_card">Cartão de Crédito</option>
-                        <option value="emergency_fund">Reserva de Emergência</option>
+                        <option value="checking">Conta Corrente (com ou sem Cartão)</option>
                         <option value="wallet">Dinheiro em Mãos (Carteira)</option>
+                        <option value="emergency_fund">Reserva de Emergência</option>
                         <option value="investment">Investimentos</option>
                       </select>
                     </div>
 
                     <div className="form-group">
                       <label>
-                        {formType === 'credit_card' ? 'Saldo Atual da Fatura (se houver)' : 'Saldo Atual Disponível (R$)'}
+                        Saldo Atual Disponível (R$)
                       </label>
                       <div className="input-currency-wrapper">
                         <span className="currency-prefix">R$</span>
@@ -470,68 +491,89 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Credit Card Specific Fields */}
-                  {formType === 'credit_card' && (
-                    <div className="form-grid-3col" style={{ marginTop: '0.65rem' }}>
-                      <div className="form-group">
-                        <label>Limite Total Concedido (R$)</label>
-                        <div className="input-currency-wrapper">
-                          <span className="currency-prefix">R$</span>
-                          <input
-                            type="number"
-                            step="100"
-                            min="0"
-                            placeholder="3500"
-                            value={formCreditLimit}
-                            onChange={(e) => setFormCreditLimit(e.target.value)}
-                            required
-                            className="cf-input mono-number input-with-prefix"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="form-group">
-                        <label>Dia Fechamento</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="31"
-                          value={formClosingDay}
-                          onChange={(e) => setFormClosingDay(e.target.value)}
-                          className="cf-input mono-number"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label>Dia Vencimento</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="31"
-                          value={formDueDay}
-                          onChange={(e) => setFormDueDay(e.target.value)}
-                          className="cf-input mono-number"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Checking Account Overdraft Limit */}
+                  {/* Checking Account: Coupled Credit Card Option */}
                   {formType === 'checking' && (
-                    <div className="form-group" style={{ marginTop: '0.65rem' }}>
-                      <label>Limite de Cheque Especial / Crédito Rotativo (Opcional)</label>
-                      <div className="input-currency-wrapper">
-                        <span className="currency-prefix">R$</span>
+                    <div style={{ marginTop: '0.85rem' }}>
+                      <div
+                        onClick={() => setFormHasCreditCard(!formHasCreditCard)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.75rem 1rem',
+                          background: formHasCreditCard ? 'rgba(130, 10, 209, 0.08)' : 'rgba(0,0,0,0.02)',
+                          border: formHasCreditCard ? '1px solid #820ad1' : '1px solid rgba(0,0,0,0.08)',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <CreditCard size={18} color={formHasCreditCard ? '#820ad1' : 'var(--text-muted)'} />
+                          <div>
+                            <strong style={{ fontSize: '0.85rem', color: formHasCreditCard ? '#820ad1' : 'var(--text-main)', display: 'block' }}>
+                              Possui Cartão de Crédito nesta conta?
+                            </strong>
+                            <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                              Acopla limite, fatura, data de fechamento e vencimento na mesma conta
+                            </span>
+                          </div>
+                        </div>
                         <input
-                          type="number"
-                          step="100"
-                          min="0"
-                          placeholder="0,00"
-                          value={formCreditLimit}
-                          onChange={(e) => setFormCreditLimit(e.target.value)}
-                          className="cf-input mono-number input-with-prefix"
+                          type="checkbox"
+                          checked={formHasCreditCard}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setFormHasCreditCard(e.target.checked);
+                          }}
+                          style={{ width: '18px', height: '18px', accentColor: '#820ad1', cursor: 'pointer' }}
                         />
                       </div>
+
+                      {formHasCreditCard && (
+                        <div className="form-grid-3col" style={{ marginTop: '0.65rem', padding: '0.75rem', background: 'rgba(130, 10, 209, 0.03)', borderRadius: '8px', border: '1px dashed rgba(130, 10, 209, 0.25)' }}>
+                          <div className="form-group">
+                            <label style={{ color: '#820ad1', fontWeight: 600 }}>Limite do Cartão (R$)</label>
+                            <div className="input-currency-wrapper">
+                              <span className="currency-prefix">R$</span>
+                              <input
+                                type="number"
+                                step="100"
+                                min="0"
+                                placeholder="3500"
+                                value={formCreditLimit}
+                                onChange={(e) => setFormCreditLimit(e.target.value)}
+                                required
+                                className="cf-input mono-number input-with-prefix"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="form-group">
+                            <label>Dia Fechamento</label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="31"
+                              value={formClosingDay}
+                              onChange={(e) => setFormClosingDay(e.target.value)}
+                              className="cf-input mono-number"
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Dia Vencimento</label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="31"
+                              value={formDueDay}
+                              onChange={(e) => setFormDueDay(e.target.value)}
+                              className="cf-input mono-number"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -679,9 +721,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           </div>
                         )}
 
-                        {isCard && (acc.closingDay || acc.dueDay) && (
+                        {acc.type === 'checking' && acc.hasCreditCard && (
                           <div className="cf-metric-badge-box">
-                            <span className="cf-metric-label">Fechamento / Vencimento</span>
+                            <span className="cf-metric-label">Cartão de Crédito Integrado</span>
+                            <span className="cf-metric-value mono-number text-purple" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <CreditCard size={13} />
+                              {formatCurrency(acc.creditLimit || 0)}
+                            </span>
+                          </div>
+                        )}
+
+                        {((acc.type === 'checking' && acc.hasCreditCard) || isCard) && (acc.closingDay || acc.dueDay) && (
+                          <div className="cf-metric-badge-box">
+                            <span className="cf-metric-label">Fatura: Fech. / Venc.</span>
                             <span className="cf-metric-value" style={{ fontSize: '0.82rem' }}>
                               <Calendar size={13} style={{ display: 'inline', marginRight: '3px' }} />
                               Dia {acc.closingDay || 10} / Dia {acc.dueDay || 17}
@@ -689,7 +741,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           </div>
                         )}
 
-                        {!isCard && acc.creditLimit && acc.creditLimit > 0 && (
+                        {!isCard && !acc.hasCreditCard && acc.creditLimit && acc.creditLimit > 0 && (
                           <div className="cf-metric-badge-box">
                             <span className="cf-metric-label">Cheque Especial</span>
                             <span className="cf-metric-value mono-number">

@@ -335,7 +335,7 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
                       <div className="cf-of-item-meta" style={{ marginTop: '0.2rem' }}>
                         <span className="cf-of-status-pill">
                           <span className="cf-of-status-dot" />
-                          {isCard ? 'Cartão de Crédito' : 'Disponível p/ Lançamentos'}
+                          {isCard ? 'Cartão de Crédito' : acc.hasCreditCard ? 'Conta com Cartão Integrado' : 'Disponível p/ Lançamentos'}
                         </span>
                         {isCard ? (
                           <span className="cf-of-sync-text" style={{ color: '#820ad1', fontWeight: 600 }}>
@@ -345,6 +345,11 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
                         ) : (
                           <span className="cf-of-sync-text" style={{ color: '#10b981', fontWeight: 600 }}>
                             Saldo: {formatCurrency(acc.balance || 0)}
+                            {acc.hasCreditCard && acc.creditLimit && acc.creditLimit > 0 ? (
+                              <span style={{ color: '#820ad1', marginLeft: '6px' }}>
+                                • 💳 Limite Cartão: {formatCurrency(acc.creditLimit)}
+                              </span>
+                            ) : null}
                           </span>
                         )}
                       </div>

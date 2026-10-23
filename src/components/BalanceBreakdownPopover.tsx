@@ -56,7 +56,7 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
     }
   };
 
-  const displayAccounts = accounts && accounts.length > 0 
+  const displayAccounts: FinancialAccount[] = accounts && accounts.length > 0 
     ? accounts 
     : balances.accounts.map(a => ({
         id: a.accountId,
@@ -64,9 +64,10 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
         institutionName: a.institutionName,
         type: (a.type as any) || 'checking',
         balance: a.balance,
+        hasCreditCard: false,
         color: a.color,
-        notes: undefined as string | undefined,
-        creditLimit: undefined as number | undefined,
+        notes: undefined,
+        creditLimit: undefined,
       }));
 
   return (
@@ -139,6 +140,11 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
                     <span className="cf-popover-acc-inst">{acc.institutionName}</span>
                     <span className="cf-popover-acc-name">
                       {acc.name}
+                      {acc.hasCreditCard && (
+                        <span style={{ fontSize: '0.68rem', color: '#820ad1', marginLeft: '4px', fontWeight: 600 }}>
+                          (💳 Cartão)
+                        </span>
+                      )}
                       {isCard && <span style={{ fontSize: '0.68rem', color: '#820ad1', marginLeft: '4px' }}>(Cartão)</span>}
                     </span>
                     {acc.notes && (
@@ -153,7 +159,14 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
                         Lim. {formatCurrency(acc.creditLimit || 0)}
                       </span>
                     ) : (
-                      formatCurrency(acc.balance || 0)
+                      <div>
+                        <div>{formatCurrency(acc.balance || 0)}</div>
+                        {acc.hasCreditCard && acc.creditLimit && acc.creditLimit > 0 ? (
+                          <div style={{ fontSize: '0.7rem', color: '#820ad1', fontWeight: 600 }}>
+                            Lim. {formatCurrency(acc.creditLimit)}
+                          </div>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 </div>
