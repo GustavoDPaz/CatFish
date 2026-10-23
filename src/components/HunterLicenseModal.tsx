@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { UserProfile, FinancialAccount, AccountType } from '../types';
+import { audioManager } from '../utils/audio';
 import { 
   X, 
   ShieldCheck, 
@@ -227,14 +228,88 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveAll = useCallback((e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    let currentAccounts = [...accountsList];
+    if (isEditingAccount && formInstitution.trim() && formAccountName.trim()) {
+      const numBal = Number(formBalance) || 0;
+      const numCred = Number(formCreditLimit) || 0;
+      const closing = Number(formClosingDay) || 10;
+      const due = Number(formDueDay) || 17;
+
+      if (editingAccountId) {
+        currentAccounts = currentAccounts.map((a) =>
+          a.id === editingAccountId
+            ? {
+                ...a,
+                name: formAccountName.trim(),
+                institutionName: formInstitution.trim(),
+                type: formType,
+                balance: numBal,
+                hasCreditCard: formType === 'checking' ? formHasCreditCard : false,
+                creditLimit:
+                  (formType === 'checking' && formHasCreditCard) || formType === 'credit_card'
+                    ? numCred
+                    : undefined,
+                color: formColor,
+                closingDay:
+                  (formType === 'checking' && formHasCreditCard) || formType === 'credit_card'
+                    ? closing
+                    : undefined,
+                dueDay:
+                  (formType === 'checking' && formHasCreditCard) || formType === 'credit_card'
+                    ? due
+                    : undefined,
+                notes: formNotes.trim() || undefined,
+              }
+            : a
+        );
+      } else {
+        const newAcc: FinancialAccount = {
+          id: `acc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: formAccountName.trim(),
+          institutionName: formInstitution.trim(),
+          type: formType,
+          balance: numBal,
+          hasCreditCard: formType === 'checking' ? formHasCreditCard : false,
+          creditLimit:
+            (formType === 'checking' && formHasCreditCard) || formType === 'credit_card'
+              ? numCred
+              : undefined,
+          color: formColor,
+          closingDay:
+            (formType === 'checking' && formHasCreditCard) || formType === 'credit_card'
+              ? closing
+              : undefined,
+          dueDay:
+            (formType === 'checking' && formHasCreditCard) || formType === 'credit_card'
+              ? due
+              : undefined,
+          notes: formNotes.trim() || undefined,
+        };
+        currentAccounts = [...currentAccounts, newAcc];
+      }
+    }
 
     // Persist accounts
-    onUpdateAccounts(accountsList);
+    onUpdateAccounts(currentAccounts);
 
     // Persist profile
-    const primaryChecking = accountsList.find((a) => a.type === 'checking');
+    const primaryChecking = currentAccounts.find((a) => a.type === 'checking');
+    const totChecking = currentAccounts
+      .filter((a) => a.type === 'checking')
+      .reduce((s, a) => s + (a.balance || 0), 0);
+    const totWallet = currentAccounts
+      .filter((a) => a.type === 'wallet')
+      .reduce((s, a) => s + (a.balance || 0), 0);
+    const totReserve = currentAccounts
+      .filter((a) => a.type === 'emergency_fund')
+      .reduce((s, a) => s + (a.balance || 0), 0);
+    const totCredit = currentAccounts
+      .filter((a) => (a.type === 'checking' && a.hasCreditCard) || a.type === 'credit_card')
+      .reduce((s, a) => s + (a.creditLimit || 0), 0);
+
     onSave({
       ...profile,
       name: name.trim() || 'Usuário',
@@ -243,17 +318,59 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       nenAffinity: affinity,
       soundEnabled,
       bankName: primaryChecking?.institutionName || profile.bankName || 'Banco Principal',
-      bankBalance: totalCheckingBalance,
-      walletBalance: totalWalletBalance,
-      emergencyFundBalance: totalReserveBalance,
-      creditCardLimit: totalCreditLimit,
+      bankBalance: totChecking,
+      walletBalance: totWallet,
+      emergencyFundBalance: totReserve,
+      creditCardLimit: totCredit,
       maxDebtCapacity: numMaxDebt,
       maxAuraCapacity: numMaxDebt,
       monthlyIncome: numIncome,
     });
 
+    audioManager.playSuccessChime();
     onClose();
-  };
+  }, [
+    accountsList,
+    isEditingAccount,
+    formInstitution,
+    formAccountName,
+    formBalance,
+    formCreditLimit,
+    formClosingDay,
+    formDueDay,
+    editingAccountId,
+    formType,
+    formHasCreditCard,
+    formColor,
+    formNotes,
+    onUpdateAccounts,
+    onSave,
+    profile,
+    name,
+    title,
+    affinity,
+    soundEnabled,
+    numMaxDebt,
+    numIncome,
+    onClose,
+  ]);
+
+  // Keyboard navigation: ESC closes modal, ENTER saves current state
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === 'Enter') {
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        if (tag === 'textarea') return;
+        e.preventDefault();
+        handleSaveAll();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, handleSaveAll]);
 
   const accountId = profile.accountId || profile.hunterId || 'CF-2026-1920';
 
@@ -277,7 +394,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   return (
     <div 
       className="modal-overlay" 
-      onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="profile-modal-title"
@@ -342,6 +458,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <span className="chip-label">Reserva:</span>
                   <span className="chip-val">{formatCurrency(totalReserveBalance)}</span>
                 </div>
+                <div className="license-chip">
+                  <span className="chip-label">Carteira:</span>
+                  <span className="chip-val">{formatCurrency(totalWalletBalance)}</span>
+                </div>
                 <div className="license-chip warning">
                   <span className="chip-label">Teto Dívida:</span>
                   <span className="chip-val">{formatCurrency(numMaxDebt)}</span>
@@ -373,7 +493,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
 
         {/* Edit Form */}
-        <form onSubmit={handleSubmit} style={{ padding: '1rem 1.25rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <form onSubmit={handleSaveAll} style={{ padding: '1rem 1.25rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
           {/* TAB 1: FINANCIAL DATA & MANUAL ACCOUNTS */}
           {activeTab === 'financial' && (
@@ -433,6 +553,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         value={formAccountName}
                         onChange={(e) => setFormAccountName(e.target.value)}
                         required
+                        maxLength={50}
                         className="cf-input"
                         autoFocus
                       />
@@ -446,6 +567,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         value={formInstitution}
                         onChange={(e) => setFormInstitution(e.target.value)}
                         required
+                        maxLength={50}
                         className="cf-input"
                       />
                     </div>
@@ -481,6 +603,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         <input
                           type="number"
                           step="0.01"
+                          max="999999999"
+                          min="-999999999"
                           placeholder="0,00"
                           value={formBalance}
                           onChange={(e) => setFormBalance(e.target.value)}
@@ -540,6 +664,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                 type="number"
                                 step="100"
                                 min="0"
+                                max="999999999"
                                 placeholder="3500"
                                 value={formCreditLimit}
                                 onChange={(e) => setFormCreditLimit(e.target.value)}
@@ -585,6 +710,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </label>
                     <textarea
                       rows={2}
+                      maxLength={250}
                       placeholder="Descreva detalhes do limite concedido, regras de uso, taxas ou objetivo desta conta (ex: Limite rotativo de R$ 3.500 para despesas diárias, vencimento dia 12)..."
                       value={formNotes}
                       onChange={(e) => setFormNotes(e.target.value)}
@@ -788,6 +914,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         type="number"
                         step="500"
                         min="0"
+                        max="999999999"
                         value={maxDebt}
                         onChange={(e) => setMaxDebt(e.target.value)}
                         required
@@ -807,6 +934,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         type="number"
                         step="100"
                         min="0"
+                        max="999999999"
                         placeholder="Ex: 7500"
                         value={monthlyIncome}
                         onChange={(e) => setMonthlyIncome(e.target.value)}
@@ -830,6 +958,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  maxLength={60}
                   placeholder="Seu nome ou apelido"
                   className="cf-input hunter-input"
                 />
@@ -842,6 +971,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
+                  maxLength={80}
                   placeholder="Ex: Desenvolvedor, Autônomo, Estudante..."
                   className="cf-input hunter-input"
                 />
