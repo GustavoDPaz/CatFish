@@ -1,7 +1,23 @@
 import React, { useState } from 'react';
-import type { BankConnection } from '../types';
+import type { BankConnection, FinancialAccount } from '../types';
 import { api } from '../services/api';
-import { Landmark, Plus, CheckCircle2, AlertCircle, X, ShieldCheck, RefreshCw, Trash2, ExternalLink, FileSpreadsheet } from 'lucide-react';
+import { 
+  Landmark, 
+  Plus, 
+  CheckCircle2, 
+  AlertCircle, 
+  X, 
+  ShieldCheck, 
+  RefreshCw, 
+  Trash2, 
+  ExternalLink, 
+  FileSpreadsheet,
+  Wallet,
+  CreditCard,
+  TrendingUp,
+  Settings,
+  Info
+} from 'lucide-react';
 
 interface OpenFinanceModalProps {
   isOpen: boolean;
@@ -9,6 +25,8 @@ interface OpenFinanceModalProps {
   connections: BankConnection[];
   onRefreshConnections: () => void;
   onOpenOfxModal?: () => void;
+  accounts?: FinancialAccount[];
+  onOpenContabilizar?: () => void;
 }
 
 export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
@@ -17,6 +35,8 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
   connections,
   onRefreshConnections,
   onOpenOfxModal,
+  accounts = [],
+  onOpenContabilizar,
 }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -28,6 +48,25 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
   const [customBankName, setCustomBankName] = useState('');
 
   if (!isOpen) return null;
+
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  };
+
+  const getAccountIcon = (type?: string) => {
+    switch (type) {
+      case 'credit_card':
+        return <CreditCard size={17} />;
+      case 'wallet':
+        return <Wallet size={17} />;
+      case 'emergency_fund':
+        return <ShieldCheck size={17} />;
+      case 'investment':
+        return <TrendingUp size={17} />;
+      default:
+        return <Landmark size={17} />;
+    }
+  };
 
   /**
    * Opens the official Pluggy Connect Widget (supports all 50+ Brazilian banks)
@@ -158,51 +197,57 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
     }
   };
 
-  /**
-   * Force on-demand sync
-   */
   const handleSyncAll = async () => {
     setIsSyncing(true);
     setFeedbackMsg(null);
     try {
-      const res = await api.syncOpenFinance();
-      if (res.success) {
-        onRefreshConnections();
-        setFeedbackMsg({ type: 'success', text: 'Contas e faturas sincronizadas com sucesso!' });
-      } else {
-        setFeedbackMsg({ type: 'info', text: res.message || 'Sincronização concluída.' });
-      }
+      await api.syncOpenFinance();
+      onRefreshConnections();
+      setFeedbackMsg({ type: 'success', text: 'Saldos e faturas sincronizados com sucesso!' });
     } catch (err) {
-      setFeedbackMsg({ type: 'error', text: 'Falha ao sincronizar contas.' });
+      console.error('Erro ao sincronizar:', err);
+      setFeedbackMsg({ type: 'error', text: 'Erro ao atualizar dados do Open Finance.' });
     } finally {
       setIsSyncing(false);
     }
   };
 
   return (
-    <div className="cf-of-backdrop" onClick={onClose}>
+    <div 
+      className="modal-overlay" 
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="open-finance-title"
+    >
       <div 
-        className="cf-of-dialog" 
+        className="modal-content cf-of-modal-content" 
         onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Gerenciamento de Contas Open Finance"
+        style={{ maxWidth: '680px' }}
       >
         {/* Header */}
         <div className="cf-of-header">
           <div className="cf-of-header-left">
-            <div className="cf-of-header-badge">
-              <Landmark size={20} className="cf-text-emerald" />
+            <div className="cf-of-logo-badge">
+              <Landmark size={20} />
             </div>
             <div>
-              <h2 className="cf-of-title">Contas Conectadas (Open Finance)</h2>
-              <p className="cf-of-subtitle">
-                Sincronização oficial regulamentada pelo Banco Central do Brasil com criptografia ponta a ponta.
-              </p>
+              <div className="cf-of-tag-row">
+                <span className="cf-of-tag">BACEN Open Finance</span>
+                <span className="cf-of-tag-sandbox">Modo Integrado</span>
+              </div>
+              <h2 id="open-finance-title" className="cf-of-title">
+                Contas Bancárias & Conexões
+              </h2>
             </div>
           </div>
-          <button className="cf-of-close-btn" onClick={onClose} aria-label="Fechar modal" title="Fechar">
-            <X size={20} />
+          <button 
+            className="btn-close" 
+            onClick={onClose}
+            title="Fechar modal de Open Finance"
+            aria-label="Fechar modal de conexões bancárias"
+          >
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
@@ -224,15 +269,116 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
         <div className="cf-of-callout">
           <ShieldCheck size={18} className="cf-of-callout-icon" />
           <div className="cf-of-callout-content">
-            <strong>Proteção Nível Bancário:</strong> Seus dados são protegidos por criptografia <strong>AES-256-GCM</strong>. O CatFish possui acesso estritamente somente leitura e jamais armazena suas senhas de banco.
+            <strong>Segurança CatFish:</strong> Suas contas manuais e conexões são centralizadas de forma segura. O CatFish garante rastreabilidade total de saldos, limites e lançamentos.
           </div>
         </div>
 
-        {/* Active Connections List */}
+        {/* SECTION 1: Manual Accounts Registered in Contabilizar */}
+        <div className="cf-of-card-section">
+          <div className="cf-of-section-header">
+            <div>
+              <h3 className="cf-of-section-title">
+                Contas Cadastradas no Painel ({accounts.length})
+              </h3>
+              <p style={{ margin: '0.15rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Contas e cartões ativos para lançamentos com limites explicados
+              </p>
+            </div>
+            {onOpenContabilizar && (
+              <button
+                type="button"
+                className="cf-btn-secondary"
+                onClick={() => {
+                  onClose();
+                  onOpenContabilizar();
+                }}
+                style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}
+              >
+                <Settings size={13} />
+                <span>Gerenciar no Contabilizar</span>
+              </button>
+            )}
+          </div>
+
+          <div className="cf-of-list">
+            {accounts.map((acc) => {
+              const bColor = acc.color || '#10b981';
+              const isCard = acc.type === 'credit_card';
+
+              return (
+                <div key={acc.id} className="cf-of-item" style={{ alignItems: 'flex-start' }}>
+                  <div className="cf-of-item-left" style={{ flex: 1 }}>
+                    <div 
+                      className="cf-of-item-icon" 
+                      style={{ backgroundColor: `${bColor}18`, color: bColor }}
+                    >
+                      {getAccountIcon(acc.type)}
+                    </div>
+                    <div className="cf-of-item-details" style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <span className="cf-of-item-name">{acc.name}</span>
+                        <span 
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: '4px',
+                            backgroundColor: `${bColor}15`,
+                            color: bColor,
+                            border: `1px solid ${bColor}30`,
+                          }}
+                        >
+                          {acc.institutionName}
+                        </span>
+                      </div>
+                      
+                      <div className="cf-of-item-meta" style={{ marginTop: '0.2rem' }}>
+                        <span className="cf-of-status-pill">
+                          <span className="cf-of-status-dot" />
+                          {isCard ? 'Cartão de Crédito' : 'Disponível p/ Lançamentos'}
+                        </span>
+                        {isCard ? (
+                          <span className="cf-of-sync-text" style={{ color: '#820ad1', fontWeight: 600 }}>
+                            Limite: {formatCurrency(acc.creditLimit || 0)}
+                            {acc.closingDay && ` • Fech. dia ${acc.closingDay}`}
+                          </span>
+                        ) : (
+                          <span className="cf-of-sync-text" style={{ color: '#10b981', fontWeight: 600 }}>
+                            Saldo: {formatCurrency(acc.balance || 0)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Explanation of Limit / Account Notes */}
+                      {acc.notes && (
+                        <div style={{
+                          marginTop: '0.35rem',
+                          fontSize: '0.73rem',
+                          color: 'var(--text-secondary)',
+                          background: 'var(--bg-subtle, rgba(0,0,0,0.02))',
+                          padding: '0.3rem 0.5rem',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                        }}>
+                          <Info size={12} color={bColor} style={{ flexShrink: 0 }} />
+                          <span>{acc.notes}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* SECTION 2: Automated Open Finance Connections */}
         <div className="cf-of-card-section">
           <div className="cf-of-section-header">
             <h3 className="cf-of-section-title">
-              Suas Conexões Ativas ({connections.length})
+              Conexões Automáticas Open Finance ({connections.length})
             </h3>
             {connections.length > 0 && (
               <button 
@@ -250,10 +396,10 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
           {connections.length === 0 ? (
             <div className="cf-of-empty-state">
               <div className="cf-of-empty-icon-box">
-                <Landmark size={28} />
+                <Landmark size={24} />
               </div>
-              <h4>Nenhum banco conectado</h4>
-              <p>Conecte sua conta corrente ou cartão para importar automaticamente seus saldos, faturas e lançamentos.</p>
+              <h4 style={{ fontSize: '0.92rem' }}>Nenhum agregador automático conectado</h4>
+              <p style={{ fontSize: '0.78rem' }}>Você pode conectar diretamente via Pluggy Connect ou manter suas contas manuais criadas no Contabilizar.</p>
             </div>
           ) : (
             <div className="cf-of-list">
@@ -266,7 +412,7 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
                         <Landmark size={18} />
                       </div>
                       <div className="cf-of-item-details">
-                        <span className="cf-of-item-name">{conn.institutionName}</span>
+                        <span className="cf-of-item-name">{conn.institutionName || (conn as any).institution_name || 'Instituição Conectada'}</span>
                         <div className="cf-of-item-meta">
                           <span className="cf-of-status-pill">
                             <span className="cf-of-status-dot" />
@@ -280,10 +426,10 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
                     <div className="cf-of-item-actions">
                       <button 
                         className="cf-of-del-btn" 
-                        onClick={() => handleDeleteConnection(conn.id, conn.institutionName)}
+                        onClick={() => handleDeleteConnection(conn.id, conn.institutionName || (conn as any).institution_name || 'este banco')}
                         disabled={isDeleting}
                         title="Desconectar este banco"
-                        aria-label={`Desconectar ${conn.institutionName}`}
+                        aria-label={`Desconectar ${conn.institutionName || 'este banco'}`}
                       >
                         {isDeleting ? <RefreshCw size={15} className="cf-spin" /> : <Trash2 size={15} />}
                         <span>Desconectar</span>
@@ -347,7 +493,7 @@ export const OpenFinanceModal: React.FC<OpenFinanceModalProps> = ({
             )}
           </div>
 
-          {/* Optional Direct Bank Name Input (Freedom to add any bank) */}
+          {/* Optional Direct Bank Name Input */}
           {showCustomBankInput && (
             <form onSubmit={handleAddCustomBank} className="cf-of-custom-form">
               <div className="cf-of-custom-input-group">

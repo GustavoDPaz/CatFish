@@ -27,6 +27,8 @@ import type {
   ConsolidatedBalances,
   CreditCardsSummary,
   BankConnection,
+  BankConfig,
+  FinancialAccount,
 } from './types';
 import { X } from 'lucide-react';
 
@@ -74,6 +76,19 @@ export const App: React.FC = () => {
   const [debts, setDebts] = useState<Debt[]>(() => storage.getDebts());
   const [budgets, setBudgets] = useState<BudgetLimit[]>(() => storage.getBudgets());
   const [cards, setCards] = useState<FinancialGoal[]>(() => storage.getCards());
+  const [bankConfigs, setBankConfigs] = useState<BankConfig[]>(() => storage.getBankConfigs());
+  const [accounts, setAccounts] = useState<FinancialAccount[]>(() => storage.getAccounts());
+
+  const handleUpdateAccounts = (updated: FinancialAccount[]) => {
+    setAccounts(updated);
+    storage.saveAccounts(updated);
+    setProfile(storage.getProfile());
+  };
+
+  const handleUpdateBankConfigs = (updated: BankConfig[]) => {
+    setBankConfigs(updated);
+    storage.saveBankConfigs(updated);
+  };
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'apr' | 'transactions' | 'en' | 'greed_island'>('dashboard');
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -147,6 +162,7 @@ export const App: React.FC = () => {
   const [quickTxType, setQuickTxType] = useState<TransactionType>('despesa');
   const [quickTxCategory, setQuickTxCategory] = useState('Alimentação');
   const [quickTxAccount, setQuickTxAccount] = useState('Conta Corrente');
+  const [quickTxBank, setQuickTxBank] = useState('Nubank');
 
   const handleOpenProfileModal = (tab: 'financial' | 'profile' = 'profile') => {
     setProfileModalTab(tab);
@@ -260,6 +276,7 @@ export const App: React.FC = () => {
       type: quickTxType,
       category: quickTxCategory,
       account: quickTxAccount,
+      bankName: quickTxBank,
       date: new Date().toISOString().split('T')[0],
       notes: '',
     });
@@ -366,6 +383,7 @@ export const App: React.FC = () => {
     setDebts(storage.getDebts());
     setBudgets(storage.getBudgets());
     setCards(storage.getCards());
+    setAccounts(storage.getAccounts());
   };
 
   const handleAddCard = (newCard: Omit<FinancialGoal, 'id'>) => {
@@ -384,43 +402,141 @@ export const App: React.FC = () => {
     setCards((prev) => prev.filter((c) => c.id !== id));
   };
 
-  // Calculations
-  const netBankTx = transactions
-    .filter((t) => t.account === 'Conta Corrente')
-    .reduce((sum, t) => (t.type === 'receita' || t.type === 'ren') ? sum + t.amount : (t.type === 'despesa' || t.type === 'ko') ? sum - t.amount : sum, 0);
+  // Calculations derived directly from manual accounts and transactions
+  const manualChecking = accounts.filter((a) => a.type === 'checking');
+  const manualWallet = accounts.filter((a) => a.type === 'wallet');
+  const manualReserve = accounts.filter((a) => a.type === 'emergency_fund');
+  const manualCardAccounts = accounts.filter((a) => a.type === 'credit_card');
 
-  const netWalletTx = transactions
-    .filter((t) => t.account === 'Carteira')
-    .reduce((sum, t) => (t.type === 'receita' || t.type === 'ren') ? sum + t.amount : (t.type === 'despesa' || t.type === 'ko') ? sum - t.amount : sum, 0);
+  const getAccountNetTx = (acc: FinancialAccount) => {
+    return transactions
+      .filter((t) =>
+        t.account === acc.name ||
+        (acc.type === 'checking' && t.account === 'Conta Corrente' && t.bankName?.toLowerCase() === acc.institutionName.toLowerCase()) ||
+        (acc.type === 'wallet' && t.account === 'Carteira') ||
+        (acc.type === 'emergency_fund' && (t.account === 'Reserva de Emergência' || t.type === 'reserva' || t.type === 'ten'))
+      )
+      .reduce((sum, t) => {
+        if (t.type === 'receita' || t.type === 'ren' || t.type === 'reserva' || t.type === 'ten') return sum + t.amount;
+        if (t.type === 'despesa' || t.type === 'ko') return sum - t.amount;
+        return sum;
+      }, 0);
+  };
 
-  const netReserveTx = transactions
-    .filter((t) => t.type === 'reserva' || t.type === 'ten' || t.account === 'Reserva de Emergência')
-    .reduce((sum, t) => (t.type === 'receita' || t.type === 'ren' || t.type === 'reserva' || t.type === 'ten') ? sum + t.amount : (t.type === 'despesa' || t.type === 'ko') ? sum - t.amount : sum, 0);
+  const currentBank = manualChecking.length > 0
+    ? manualChecking.reduce((sum, a) => sum + (a.balance || 0) + getAccountNetTx(a), 0)
+    : (profile.bankBalance ?? 4200) + transactions.filter(t => t.account === 'Conta Corrente').reduce((sum, t) => (t.type === 'receita' || t.type === 'ren') ? sum + t.amount : (t.type === 'despesa' || t.type === 'ko') ? sum - t.amount : sum, 0);
 
-  const currentBank = (profile.bankBalance ?? 4200) + netBankTx;
-  const currentWallet = (profile.walletBalance ?? 1450) + netWalletTx;
-  const currentReserve = (profile.emergencyFundBalance ?? 1500) + netReserveTx;
+  const currentWallet = manualWallet.length > 0
+    ? manualWallet.reduce((sum, a) => sum + (a.balance || 0) + getAccountNetTx(a), 0)
+    : (profile.walletBalance ?? 1450) + transactions.filter(t => t.account === 'Carteira').reduce((sum, t) => (t.type === 'receita' || t.type === 'ren') ? sum + t.amount : (t.type === 'despesa' || t.type === 'ko') ? sum - t.amount : sum, 0);
 
-  const activeTotalBalance = consolidatedBalances?.consolidatedTotal ?? (currentBank + currentWallet + currentReserve);
+  const currentReserve = manualReserve.length > 0
+    ? manualReserve.reduce((sum, a) => sum + (a.balance || 0) + getAccountNetTx(a), 0)
+    : (profile.emergencyFundBalance ?? 1500) + transactions.filter(t => t.type === 'reserva' || t.type === 'ten' || t.account === 'Reserva de Emergência').reduce((sum, t) => (t.type === 'receita' || t.type === 'ren' || t.type === 'reserva' || t.type === 'ten') ? sum + t.amount : (t.type === 'despesa' || t.type === 'ko') ? sum - t.amount : sum, 0);
 
-  const cardExpenses = transactions
-    .filter((t) => t.account === 'Cartão de Crédito' && (t.type === 'despesa' || t.type === 'ko'))
-    .reduce((sum, t) => sum + t.amount, 0);
+  const totalLiquidBalance = currentBank + currentWallet + currentReserve;
+
+  const activeTotalBalance = (bankConnections.length > 0 && consolidatedBalances.consolidatedTotal > 0)
+    ? consolidatedBalances.consolidatedTotal
+    : totalLiquidBalance;
+
+  const activeBalances: ConsolidatedBalances = (bankConnections.length > 0 && consolidatedBalances.accounts.length > 0)
+    ? consolidatedBalances
+    : {
+        consolidatedTotal: totalLiquidBalance,
+        accounts: accounts
+          .filter((a) => a.type !== 'credit_card')
+          .map((a) => ({
+            accountId: a.id,
+            institutionName: a.institutionName,
+            accountName: a.name,
+            balance: (a.balance || 0) + getAccountNetTx(a),
+            color: a.color || '#10b981',
+            type: a.type,
+          })),
+        lastUpdated: new Date().toISOString(),
+      };
 
   const cardDebts = debts
     .filter((d) => d.category === 'cartao_credito' && d.status === 'active')
     .reduce((sum, d) => sum + (d.principalAmount - d.paidAmount), 0);
 
-  const totalCardInvoice = cardExpenses + cardDebts;
+  const derivedCards = manualCardAccounts.length > 0
+    ? manualCardAccounts.map((acc) => {
+        const bCardExpenses = transactions
+          .filter(
+            (t) =>
+              (t.account === acc.name || (t.bankName?.toLowerCase() === acc.institutionName.toLowerCase() && t.account === 'Cartão de Crédito')) &&
+              (t.type === 'despesa' || t.type === 'ko')
+          )
+          .reduce((sum, t) => sum + t.amount, 0);
+        const totalLimit = acc.creditLimit || 0;
+        const usedLimit = bCardExpenses;
+        const availableLimit = Math.max(0, totalLimit - usedLimit);
+        const usagePercent = totalLimit > 0 ? Math.min(100, Math.round((usedLimit / totalLimit) * 100)) : 0;
+        return {
+          accountId: acc.id,
+          institutionName: acc.institutionName,
+          cardName: acc.name,
+          totalLimit,
+          usedLimit,
+          availableLimit,
+          usagePercent,
+          closingDay: acc.closingDay || 10,
+          dueDay: acc.dueDay || 17,
+          color: acc.color || '#820ad1',
+        };
+      })
+    : bankConfigs.map((b) => {
+        const bCardExpenses = transactions
+          .filter(
+            (t) =>
+              (t.bankName === b.name || t.bankName?.toLowerCase() === b.name.toLowerCase()) &&
+              t.account === 'Cartão de Crédito' &&
+              (t.type === 'despesa' || t.type === 'ko')
+          )
+          .reduce((sum, t) => sum + t.amount, 0);
+        const totalLimit = b.creditCardLimit || 0;
+        const usedLimit = bCardExpenses;
+        const availableLimit = Math.max(0, totalLimit - usedLimit);
+        const usagePercent = totalLimit > 0 ? Math.min(100, Math.round((usedLimit / totalLimit) * 100)) : 0;
+        return {
+          accountId: b.id,
+          institutionName: b.name,
+          cardName: `Cartão ${b.name}`,
+          totalLimit,
+          usedLimit,
+          availableLimit,
+          usagePercent,
+          closingDay: b.closingDay || 15,
+          dueDay: b.dueDay || 22,
+          color: b.color || '#10b981',
+        };
+      });
+
+  const activeCardsSummary: CreditCardsSummary = (creditCardsSummary?.cards && creditCardsSummary.cards.length > 0)
+    ? creditCardsSummary
+    : {
+        consolidated: {
+          totalLimit: derivedCards.reduce((acc, c) => acc + c.totalLimit, 0),
+          totalUsed: derivedCards.reduce((acc, c) => acc + c.usedLimit, 0),
+          totalAvailable: derivedCards.reduce((acc, c) => acc + c.availableLimit, 0),
+          usagePercent: derivedCards.reduce((acc, c) => acc + c.totalLimit, 0) > 0
+            ? Math.round((derivedCards.reduce((acc, c) => acc + c.usedLimit, 0) / derivedCards.reduce((acc, c) => acc + c.totalLimit, 0)) * 100)
+            : 0,
+        },
+        cards: derivedCards,
+      };
 
   const hasOpenFinanceCards = Boolean(creditCardsSummary?.cards && creditCardsSummary.cards.length > 0);
   const effectiveCardsUsed = hasOpenFinanceCards
     ? creditCardsSummary.cards.reduce((sum, c) => sum + (Number(c.usedLimit) || 0), 0)
-    : totalCardInvoice;
+    : activeCardsSummary.cards.reduce((sum, c) => sum + (Number(c.usedLimit) || 0), 0) + cardDebts;
 
   const effectiveCardsLimit = hasOpenFinanceCards
     ? creditCardsSummary.cards.reduce((sum, c) => sum + (Number(c.totalLimit) || 0), 0)
-    : (profile.creditCardLimit ?? 5000);
+    : (activeCardsSummary.consolidated.totalLimit || profile.creditCardLimit || 5000);
 
   const otherActiveDebts = debts
     .filter((d) => d.status === 'active' && d.category !== 'cartao_credito')
@@ -447,6 +563,7 @@ export const App: React.FC = () => {
             setBudgets(storage.getBudgets());
             setProfile(storage.getProfile());
             setCards(storage.getCards());
+            setAccounts(storage.getAccounts());
           }}
         />
       </div>
@@ -499,9 +616,10 @@ export const App: React.FC = () => {
             onDeleteTransaction={handleDeleteTransaction}
             onOpenFinancials={() => handleOpenProfileModal('financial')}
             isRiskMode={isElevatedDebt}
-            creditCardsSummary={creditCardsSummary}
+            creditCardsSummary={activeCardsSummary}
             onOpenOpenFinance={() => setIsOpenFinanceModalOpen(true)}
             onOpenAiAssistant={() => setIsAiDrawerOpen(true)}
+            accounts={accounts}
           />
         )}
 
@@ -521,6 +639,10 @@ export const App: React.FC = () => {
             onAddTransaction={handleAddTransaction}
             onDeleteTransaction={handleDeleteTransaction}
             onOpenOfxModal={() => setIsOfxModalOpen(true)}
+            bankConfigs={bankConfigs}
+            onUpdateBankConfigs={handleUpdateBankConfigs}
+            accounts={accounts}
+            onOpenContabilizar={() => handleOpenProfileModal('financial')}
           />
         )}
 
@@ -560,6 +682,8 @@ export const App: React.FC = () => {
           onSave={setProfile}
           onClose={() => setShowProfileModal(false)}
           initialTab={profileModalTab}
+          accounts={accounts}
+          onUpdateAccounts={handleUpdateAccounts}
         />
       )}
 
@@ -666,39 +790,80 @@ export const App: React.FC = () => {
                   <select 
                     id="quick-tx-account"
                     value={quickTxAccount}
-                    onChange={(e) => setQuickTxAccount(e.target.value)}
+                    onChange={(e) => {
+                      const selectedVal = e.target.value;
+                      setQuickTxAccount(selectedVal);
+                      const matched = accounts.find(a => a.name === selectedVal || a.id === selectedVal);
+                      if (matched) {
+                        setQuickTxBank(matched.institutionName);
+                        if (matched.type === 'credit_card') {
+                          setQuickTxType('despesa');
+                        }
+                      }
+                    }}
                     className="cf-select"
                   >
-                    <option value="Conta Corrente">{profile.bankName || 'Banco Principal'}</option>
-                    <option value="Carteira">Carteira</option>
-                    <option value="Cartão de Crédito">Cartão de Crédito</option>
-                    <option value="Reserva de Emergência">Reserva de Emergência</option>
+                    {accounts.length > 0 ? (
+                      accounts.map((a) => (
+                        <option key={a.id} value={a.name}>
+                          {a.institutionName} • {a.name} ({a.type === 'credit_card' ? 'Cartão' : 'Conta'})
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Conta Corrente">{profile.bankName || 'Banco Principal'}</option>
+                        <option value="Carteira">Carteira</option>
+                        <option value="Cartão de Crédito">Cartão de Crédito</option>
+                        <option value="Reserva de Emergência">Reserva de Emergência</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label 
-                  htmlFor="quick-tx-category"
-                  style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}
-                >
-                  Categoria
-                </label>
-                <select 
-                  id="quick-tx-category"
-                  value={quickTxCategory}
-                  onChange={(e) => setQuickTxCategory(e.target.value)}
-                  className="cf-select"
-                >
-                  <option value="Alimentação">Alimentação</option>
-                  <option value="Transporte">Transporte</option>
-                  <option value="Moradia">Moradia</option>
-                  <option value="Lazer">Lazer</option>
-                  <option value="Saúde">Saúde</option>
-                  <option value="Salário">Salário / Renda</option>
-                  <option value="Investimentos">Investimentos</option>
-                  <option value="Outros">Outros</option>
-                </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label 
+                    htmlFor="quick-tx-bank"
+                    style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}
+                  >
+                    Banco / Instituição
+                  </label>
+                  <select 
+                    id="quick-tx-bank"
+                    value={quickTxBank}
+                    onChange={(e) => setQuickTxBank(e.target.value)}
+                    className="cf-select"
+                  >
+                    {bankConfigs.map((b) => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label 
+                    htmlFor="quick-tx-category"
+                    style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}
+                  >
+                    Categoria
+                  </label>
+                  <select 
+                    id="quick-tx-category"
+                    value={quickTxCategory}
+                    onChange={(e) => setQuickTxCategory(e.target.value)}
+                    className="cf-select"
+                  >
+                    <option value="Alimentação">Alimentação</option>
+                    <option value="Transporte">Transporte</option>
+                    <option value="Moradia">Moradia</option>
+                    <option value="Lazer">Lazer</option>
+                    <option value="Saúde">Saúde</option>
+                    <option value="Salário">Salário / Renda</option>
+                    <option value="Investimentos">Investimentos</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
@@ -721,14 +886,16 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Popover de Detalhamento do Saldo Consolidado e Individual (Open Finance) */}
+      {/* Popover de Detalhamento do Saldo Consolidado e Individual */}
       <BalanceBreakdownPopover
         isOpen={isBalancePopoverOpen}
         onClose={() => setIsBalancePopoverOpen(false)}
-        balances={consolidatedBalances}
+        balances={activeBalances}
         onSync={handleSyncOpenFinance}
         isSyncing={isSyncingOpenFinance}
         onOpenManageBanks={() => setIsOpenFinanceModalOpen(true)}
+        accounts={accounts}
+        onOpenContabilizar={() => handleOpenProfileModal('financial')}
       />
 
       {/* Drawer de Chat com o Assistente de IA (Google Gemini) */}
@@ -736,6 +903,10 @@ export const App: React.FC = () => {
         isOpen={isAiDrawerOpen}
         onClose={() => setIsAiDrawerOpen(false)}
         userName={profile.name || 'Gustavo'}
+        onTransactionCreated={(newTx) => {
+          handleAddTransaction(newTx);
+          audioManager.playSuccessChime();
+        }}
       />
 
       {/* Modal de Gerenciamento de Conexões Bancárias Open Finance */}
@@ -745,6 +916,8 @@ export const App: React.FC = () => {
         connections={bankConnections}
         onRefreshConnections={loadOpenFinanceData}
         onOpenOfxModal={() => setIsOfxModalOpen(true)}
+        accounts={accounts}
+        onOpenContabilizar={() => handleOpenProfileModal('financial')}
       />
 
       {/* Modal de Importação de Extrato Bancário OFX */}

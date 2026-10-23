@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Transaction, Debt, UserProfile, CreditCardsSummary } from '../types';
+import type { Transaction, Debt, UserProfile, CreditCardsSummary, FinancialAccount } from '../types';
 import {
   Landmark,
   CreditCard,
@@ -32,6 +32,7 @@ interface DashboardViewProps {
   creditCardsSummary?: CreditCardsSummary;
   onOpenOpenFinance?: () => void;
   onOpenAiAssistant?: () => void;
+  accounts?: FinancialAccount[];
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -44,6 +45,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   creditCardsSummary,
   onOpenOpenFinance,
   onOpenAiAssistant,
+  accounts,
 }) => {
   const [isCardsExpanded, setIsCardsExpanded] = useState(false);
   // Financial Accounting
@@ -54,6 +56,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const totalExpenses = transactions
     .filter((t) => t.type === 'despesa' || t.type === 'ko')
     .reduce((sum, t) => sum + t.amount, 0);
+
+  const getAccountLiveBalance = (acc: FinancialAccount) => {
+    const net = transactions
+      .filter((t) =>
+        t.account === acc.name ||
+        (acc.type === 'checking' && t.account === 'Conta Corrente' && t.bankName?.toLowerCase() === acc.institutionName.toLowerCase()) ||
+        (acc.type === 'wallet' && t.account === 'Carteira') ||
+        (acc.type === 'emergency_fund' && (t.account === 'Reserva de Emergência' || t.type === 'reserva' || t.type === 'ten'))
+      )
+      .reduce((sum, t) => {
+        if (t.type === 'receita' || t.type === 'ren' || t.type === 'reserva' || t.type === 'ten') return sum + t.amount;
+        if (t.type === 'despesa' || t.type === 'ko') return sum - t.amount;
+        return sum;
+      }, 0);
+    return (acc.balance || 0) + net;
+  };
+
+  const manualChecking = accounts?.filter((a) => a.type === 'checking') || [];
+  const manualWallet = accounts?.filter((a) => a.type === 'wallet') || [];
+  const manualReserve = accounts?.filter((a) => a.type === 'emergency_fund') || [];
 
   const netBankTx = transactions
     .filter((t) => t.account === 'Conta Corrente')
@@ -67,9 +89,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .filter((t) => t.type === 'reserva' || t.type === 'ten' || t.account === 'Reserva de Emergência')
     .reduce((sum, t) => (t.type === 'receita' || t.type === 'ren' || t.type === 'reserva' || t.type === 'ten') ? sum + t.amount : (t.type === 'despesa' || t.type === 'ko') ? sum - t.amount : sum, 0);
 
-  const currentBank = (profile.bankBalance ?? 4200) + netBankTx;
-  const currentWallet = (profile.walletBalance ?? 0) + netWalletTx;
-  const currentReserve = (profile.emergencyFundBalance ?? 0) + netReserveTx;
+  const currentBank = manualChecking.length > 0
+    ? manualChecking.reduce((s, a) => s + getAccountLiveBalance(a), 0)
+    : (profile.bankBalance ?? 4200) + netBankTx;
+
+  const currentWallet = manualWallet.length > 0
+    ? manualWallet.reduce((s, a) => s + getAccountLiveBalance(a), 0)
+    : (profile.walletBalance ?? 0) + netWalletTx;
+
+  const currentReserve = manualReserve.length > 0
+    ? manualReserve.reduce((s, a) => s + getAccountLiveBalance(a), 0)
+    : (profile.emergencyFundBalance ?? 0) + netReserveTx;
 
   const cardExpenses = transactions
     .filter((t) => t.account === 'Cartão de Crédito' && (t.type === 'despesa' || t.type === 'ko'))
@@ -344,65 +374,132 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="cf-accounts-list">
-            {/* Account 1: PicPay / Banco Principal */}
-            <div 
-              className="cf-account-item"
-              onClick={onOpenFinancials}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onOpenFinancials?.();
-                }
-              }}
-              title="Clique para ajustar dados bancários"
-              aria-label={`Conta bancária: ${profile.bankName || 'PicPay'}, saldo: ${formatCurrency(currentBank)}`}
-            >
-              <div className="cf-acc-icon-box cf-icon-picpay">
-                <Landmark size={20} aria-hidden="true" />
+            {/* Account 1: Checking Accounts */}
+            {manualChecking.length > 0 ? (
+              manualChecking.map((acc) => {
+                const liveBal = getAccountLiveBalance(acc);
+                const bColor = acc.color || '#10b981';
+                return (
+                  <div
+                    key={acc.id}
+                    className="cf-account-item"
+                    onClick={onOpenFinancials}
+                    role="button"
+                    tabIndex={0}
+                    title="Clique para ajustar dados no Contabilizar"
+                    aria-label={`Conta bancária: ${acc.institutionName} - ${acc.name}, saldo: ${formatCurrency(liveBal)}`}
+                  >
+                    <div className="cf-acc-icon-box" style={{ backgroundColor: `${bColor}18`, color: bColor }}>
+                      <Landmark size={20} aria-hidden="true" />
+                    </div>
+                    <div className="cf-acc-info">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span className="cf-acc-name">{acc.name}</span>
+                        <span className="cf-acc-badge-pill" style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', backgroundColor: `${bColor}15`, color: bColor }}>
+                          {acc.institutionName}
+                        </span>
+                      </div>
+                      <span className="cf-acc-sub">{acc.notes || 'Conta corrente'}</span>
+                    </div>
+                    <div className="cf-acc-right">
+                      <span className="cf-acc-val mono-number">
+                        {formatCurrency(liveBal)}
+                      </span>
+                      <ChevronRight size={16} className="cf-acc-chevron" aria-hidden="true" />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div 
+                className="cf-account-item"
+                onClick={onOpenFinancials}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpenFinancials?.();
+                  }
+                }}
+                title="Clique para ajustar dados bancários"
+                aria-label={`Conta bancária: ${profile.bankName || 'Banco Principal'}, saldo: ${formatCurrency(currentBank)}`}
+              >
+                <div className="cf-acc-icon-box cf-icon-picpay">
+                  <Landmark size={20} aria-hidden="true" />
+                </div>
+                <div className="cf-acc-info">
+                  <span className="cf-acc-name">{profile.bankName || 'Banco Principal'}</span>
+                  <span className="cf-acc-sub">Banco principal</span>
+                </div>
+                <div className="cf-acc-right">
+                  <span className="cf-acc-val mono-number">
+                    {formatCurrency(currentBank)}
+                  </span>
+                  <ChevronRight size={16} className="cf-acc-chevron" aria-hidden="true" />
+                </div>
               </div>
-              <div className="cf-acc-info">
-                <span className="cf-acc-name">{profile.bankName || 'PicPay'}</span>
-                <span className="cf-acc-sub">Banco principal</span>
-              </div>
-              <div className="cf-acc-right">
-                <span className="cf-acc-val mono-number">
-                  {formatCurrency(currentBank)}
-                </span>
-                <ChevronRight size={16} className="cf-acc-chevron" aria-hidden="true" />
-              </div>
-            </div>
+            )}
 
             {/* Account 2: Carteira */}
-            <div 
-              className="cf-account-item"
-              onClick={onOpenFinancials}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onOpenFinancials?.();
-                }
-              }}
-              title="Clique para ajustar saldo da carteira"
-              aria-label={`Carteira física, saldo: ${formatCurrency(currentWallet)}`}
-            >
-              <div className="cf-acc-icon-box cf-icon-wallet">
-                <Wallet size={20} aria-hidden="true" />
+            {manualWallet.length > 0 ? (
+              manualWallet.map((acc) => {
+                const liveBal = getAccountLiveBalance(acc);
+                return (
+                  <div 
+                    key={acc.id}
+                    className="cf-account-item"
+                    onClick={onOpenFinancials}
+                    role="button"
+                    tabIndex={0}
+                    title="Clique para ajustar dados no Contabilizar"
+                  >
+                    <div className="cf-acc-icon-box cf-icon-wallet">
+                      <Wallet size={20} aria-hidden="true" />
+                    </div>
+                    <div className="cf-acc-info">
+                      <span className="cf-acc-name">{acc.name}</span>
+                      <span className="cf-acc-sub">{acc.notes || 'Dinheiro em mãos'}</span>
+                    </div>
+                    <div className="cf-acc-right">
+                      <span className="cf-acc-val mono-number">
+                        {formatCurrency(liveBal)}
+                      </span>
+                      <ChevronRight size={16} className="cf-acc-chevron" aria-hidden="true" />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div 
+                className="cf-account-item"
+                onClick={onOpenFinancials}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpenFinancials?.();
+                  }
+                }}
+                title="Clique para ajustar saldo da carteira"
+                aria-label={`Carteira física, saldo: ${formatCurrency(currentWallet)}`}
+              >
+                <div className="cf-acc-icon-box cf-icon-wallet">
+                  <Wallet size={20} aria-hidden="true" />
+                </div>
+                <div className="cf-acc-info">
+                  <span className="cf-acc-name">Carteira</span>
+                  <span className="cf-acc-sub">Dinheiro em mãos</span>
+                </div>
+                <div className="cf-acc-right">
+                  <span className="cf-acc-val mono-number">
+                    {formatCurrency(currentWallet)}
+                  </span>
+                  <ChevronRight size={16} className="cf-acc-chevron" aria-hidden="true" />
+                </div>
               </div>
-              <div className="cf-acc-info">
-                <span className="cf-acc-name">Carteira</span>
-                <span className="cf-acc-sub">Dinheiro em mãos</span>
-              </div>
-              <div className="cf-acc-right">
-                <span className="cf-acc-val mono-number">
-                  {formatCurrency(currentWallet)}
-                </span>
-                <ChevronRight size={16} className="cf-acc-chevron" aria-hidden="true" />
-              </div>
-            </div>
+            )}
 
             {/* Account 3: Cartão de Crédito (Consolidado + Drill-down) */}
             <div className="cf-card-drilldown-wrapper">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import type { ConsolidatedBalances } from '../types';
-import { RefreshCw, Landmark, ExternalLink, X, CheckCircle2 } from 'lucide-react';
+import type { ConsolidatedBalances, FinancialAccount } from '../types';
+import { RefreshCw, Landmark, ExternalLink, X, CheckCircle2, CreditCard, Wallet, ShieldCheck, TrendingUp, Settings } from 'lucide-react';
 
 interface BalanceBreakdownPopoverProps {
   isOpen: boolean;
@@ -9,6 +9,8 @@ interface BalanceBreakdownPopoverProps {
   onSync: () => Promise<void>;
   isSyncing: boolean;
   onOpenManageBanks: () => void;
+  accounts?: FinancialAccount[];
+  onOpenContabilizar?: () => void;
 }
 
 export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = ({
@@ -18,6 +20,8 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
   onSync,
   isSyncing,
   onOpenManageBanks,
+  accounts,
+  onOpenContabilizar,
 }) => {
   const [viewMode, setViewMode] = useState<'consolidated' | 'individual'>('consolidated');
 
@@ -37,6 +41,34 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
     }
   })();
 
+  const getAccountIcon = (type?: string) => {
+    switch (type) {
+      case 'credit_card':
+        return <CreditCard size={16} />;
+      case 'wallet':
+        return <Wallet size={16} />;
+      case 'emergency_fund':
+        return <ShieldCheck size={16} />;
+      case 'investment':
+        return <TrendingUp size={16} />;
+      default:
+        return <Landmark size={16} />;
+    }
+  };
+
+  const displayAccounts = accounts && accounts.length > 0 
+    ? accounts 
+    : balances.accounts.map(a => ({
+        id: a.accountId,
+        name: a.accountName,
+        institutionName: a.institutionName,
+        type: (a.type as any) || 'checking',
+        balance: a.balance,
+        color: a.color,
+        notes: undefined as string | undefined,
+        creditLimit: undefined as number | undefined,
+      }));
+
   return (
     <div className="cf-popover-backdrop" onClick={onClose}>
       <div 
@@ -49,8 +81,8 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
         {/* Header */}
         <div className="cf-popover-header">
           <div className="cf-popover-title-row">
-            <span className="cf-popover-badge">Open Finance</span>
-            <span className="cf-popover-title">Saldo Disponível</span>
+            <span className="cf-popover-badge">CatFish Finance</span>
+            <span className="cf-popover-title">Saldos & Limites das Contas</span>
           </div>
           <button 
             className="cf-popover-close-btn" 
@@ -73,41 +105,60 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
             className={`cf-popover-toggle-btn ${viewMode === 'individual' ? 'active' : ''}`}
             onClick={() => setViewMode('individual')}
           >
-            Por Instituição ({balances.accounts.length})
+            Por Conta ({displayAccounts.length})
           </button>
         </div>
 
         {/* Content */}
         {viewMode === 'consolidated' ? (
           <div className="cf-popover-consolidated-box">
-            <span className="cf-popover-caption">Saldo Total Consolidado</span>
+            <span className="cf-popover-caption">Saldo Total Disponível</span>
             <div className="cf-popover-huge-amount mono-number">
               {formatCurrency(balances.consolidatedTotal)}
             </div>
             <div className="cf-popover-sub-status">
               <CheckCircle2 size={14} className="cf-text-emerald" />
-              <span>Soma de {balances.accounts.length} contas correntes ativas</span>
+              <span>Soma de {displayAccounts.filter(a => a.type !== 'credit_card').length} contas com liquidez ativa</span>
             </div>
           </div>
         ) : (
-          <div className="cf-popover-accounts-list">
-            {balances.accounts.map((acc) => (
-              <div key={acc.accountId} className="cf-popover-account-row">
-                <div 
-                  className="cf-popover-acc-icon" 
-                  style={{ backgroundColor: `${acc.color || '#10b981'}20`, color: acc.color || '#10b981' }}
-                >
-                  <Landmark size={16} />
+          <div className="cf-popover-accounts-list" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+            {displayAccounts.map((acc) => {
+              const bColor = acc.color || '#10b981';
+              const isCard = acc.type === 'credit_card';
+
+              return (
+                <div key={acc.id} className="cf-popover-account-row">
+                  <div 
+                    className="cf-popover-acc-icon" 
+                    style={{ backgroundColor: `${bColor}20`, color: bColor }}
+                  >
+                    {getAccountIcon(acc.type)}
+                  </div>
+                  <div className="cf-popover-acc-info">
+                    <span className="cf-popover-acc-inst">{acc.institutionName}</span>
+                    <span className="cf-popover-acc-name">
+                      {acc.name}
+                      {isCard && <span style={{ fontSize: '0.68rem', color: '#820ad1', marginLeft: '4px' }}>(Cartão)</span>}
+                    </span>
+                    {acc.notes && (
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>
+                        {acc.notes}
+                      </span>
+                    )}
+                  </div>
+                  <div className="cf-popover-acc-balance mono-number">
+                    {isCard ? (
+                      <span style={{ color: '#820ad1', fontSize: '0.84rem' }}>
+                        Lim. {formatCurrency(acc.creditLimit || 0)}
+                      </span>
+                    ) : (
+                      formatCurrency(acc.balance || 0)
+                    )}
+                  </div>
                 </div>
-                <div className="cf-popover-acc-info">
-                  <span className="cf-popover-acc-inst">{acc.institutionName}</span>
-                  <span className="cf-popover-acc-name">{acc.accountName}</span>
-                </div>
-                <div className="cf-popover-acc-balance mono-number">
-                  {formatCurrency(acc.balance)}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -118,6 +169,20 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
           </div>
 
           <div className="cf-popover-actions-row">
+            {onOpenContabilizar && (
+              <button
+                className="cf-popover-sync-btn"
+                onClick={() => {
+                  onClose();
+                  onOpenContabilizar();
+                }}
+                title="Editar contas e limites na aba Contabilizar"
+              >
+                <Settings size={13} />
+                <span>Contabilizar</span>
+              </button>
+            )}
+
             <button
               className="cf-popover-sync-btn"
               onClick={onSync}
@@ -136,7 +201,7 @@ export const BalanceBreakdownPopover: React.FC<BalanceBreakdownPopoverProps> = (
               }}
               title="Gerenciar conexões bancárias"
             >
-              <span>Gerenciar Contas</span>
+              <span>Open Finance</span>
               <ExternalLink size={12} />
             </button>
           </div>
