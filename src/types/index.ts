@@ -9,10 +9,39 @@ export interface Transaction {
   type: TransactionType;
   category: string;
   account: string;
+  bankName?: string;
   date: string;
   recurring?: boolean;
   notes?: string;
 }
+
+export interface BankConfig {
+  id: string;
+  name: string;
+  color: string;
+  creditCardLimit: number;
+  closingDay?: number;
+  dueDay?: number;
+  accountType?: string;
+  accountBalance?: number;
+}
+
+export type AccountType = 'checking' | 'credit_card' | 'wallet' | 'emergency_fund' | 'investment';
+
+export interface FinancialAccount {
+  id: string;
+  name: string;
+  institutionName: string;
+  type: AccountType;
+  balance: number;
+  creditLimit?: number;
+  color?: string;
+  closingDay?: number;
+  dueDay?: number;
+  notes?: string;
+  isDefault?: boolean;
+}
+
 
 export type DebtCategory = 'cartao_credito' | 'cartao_rotativo' | 'emprestimo' | 'financiamento' | 'cheque_especial' | 'outro';
 

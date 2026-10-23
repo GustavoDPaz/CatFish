@@ -1,4 +1,4 @@
-import type { Transaction, Debt, BudgetLimit, UserProfile, FinancialGoal, AuthUser } from '../types';
+import type { Transaction, Debt, BudgetLimit, UserProfile, FinancialGoal, AuthUser, BankConfig, FinancialAccount } from '../types';
 
 const STORAGE_KEYS = {
   USERS: 'catfish_users_registry_v1',
@@ -8,7 +8,67 @@ const STORAGE_KEYS = {
   BUDGETS: 'catfish_budgets_v1',
   PROFILE: 'catfish_profile_v1',
   CARDS: 'catfish_goals_v1',
+  BANKS: 'catfish_bank_configs_v1',
+  ACCOUNTS: 'catfish_accounts_v1',
 };
+
+export const DEFAULT_ACCOUNTS: FinancialAccount[] = [
+  {
+    id: 'acc-checking-itau',
+    name: 'Conta Corrente',
+    institutionName: 'Itaú',
+    type: 'checking',
+    balance: 4200,
+    creditLimit: 1000,
+    color: '#EC7000',
+    notes: 'Conta corrente principal utilizada para recebimento de salário, transferências e pagamentos fixos.',
+    isDefault: true,
+  },
+  {
+    id: 'acc-card-nubank',
+    name: 'Cartão de Crédito',
+    institutionName: 'Nubank',
+    type: 'credit_card',
+    balance: 0,
+    creditLimit: 3500,
+    color: '#820AD1',
+    closingDay: 5,
+    dueDay: 12,
+    notes: 'Cartão de crédito para compras do dia a dia, supermercado e transporte. Limite aprovado de R$ 3.500,00 com fechamento dia 5.',
+    isDefault: true,
+  },
+  {
+    id: 'acc-reserve-inter',
+    name: 'Reserva de Emergência',
+    institutionName: 'Banco Inter',
+    type: 'emergency_fund',
+    balance: 1500,
+    creditLimit: 0,
+    color: '#FF7A00',
+    notes: 'Fundo de liquidez diária com rendimento de 100% do CDI guardado para imprevistos e segurança financeira.',
+    isDefault: true,
+  },
+  {
+    id: 'acc-wallet',
+    name: 'Carteira Física',
+    institutionName: 'Dinheiro em Mãos',
+    type: 'wallet',
+    balance: 1450,
+    creditLimit: 0,
+    color: '#10B981',
+    notes: 'Dinheiro em espécie na carteira física para trocos e pequenas despesas cotidianas.',
+    isDefault: true,
+  },
+];
+
+export const DEFAULT_BANKS: BankConfig[] = [
+  { id: 'bank-nubank', name: 'Nubank', color: '#820AD1', creditCardLimit: 3500, closingDay: 5, dueDay: 12 },
+  { id: 'bank-inter', name: 'Banco Inter', color: '#FF7A00', creditCardLimit: 2500, closingDay: 10, dueDay: 17 },
+  { id: 'bank-itau', name: 'Itaú', color: '#EC7000', creditCardLimit: 5000, closingDay: 15, dueDay: 22 },
+  { id: 'bank-bradesco', name: 'Bradesco', color: '#CC092F', creditCardLimit: 2000, closingDay: 20, dueDay: 27 },
+  { id: 'bank-c6', name: 'C6 Bank', color: '#242424', creditCardLimit: 1500, closingDay: 8, dueDay: 15 },
+  { id: 'bank-santander', name: 'Santander', color: '#EA1D2C', creditCardLimit: 3000, closingDay: 12, dueDay: 19 },
+];
 
 export const DEFAULT_USERS: AuthUser[] = [
   {
@@ -65,6 +125,7 @@ export const DEFAULT_TRANSACTIONS: Transaction[] = [
     type: 'receita',
     category: 'Salário',
     account: 'Conta Corrente',
+    bankName: 'Itaú',
     date: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString().split('T')[0],
     recurring: true,
     notes: 'Depósito principal do mês',
@@ -76,6 +137,7 @@ export const DEFAULT_TRANSACTIONS: Transaction[] = [
     type: 'receita',
     category: 'Rendimentos Extras',
     account: 'Conta Corrente',
+    bankName: 'Banco Inter',
     date: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString().split('T')[0],
   },
   {
@@ -85,6 +147,7 @@ export const DEFAULT_TRANSACTIONS: Transaction[] = [
     type: 'despesa',
     category: 'Moradia',
     account: 'Conta Corrente',
+    bankName: 'Itaú',
     date: new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString().split('T')[0],
     recurring: true,
   },
@@ -95,6 +158,7 @@ export const DEFAULT_TRANSACTIONS: Transaction[] = [
     type: 'despesa',
     category: 'Alimentação',
     account: 'Cartão de Crédito',
+    bankName: 'Nubank',
     date: new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString().split('T')[0],
   },
   {
@@ -104,6 +168,7 @@ export const DEFAULT_TRANSACTIONS: Transaction[] = [
     type: 'despesa',
     category: 'Educação & Cursos',
     account: 'Conta Corrente',
+    bankName: 'Banco Inter',
     date: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString().split('T')[0],
   },
   {
@@ -113,6 +178,7 @@ export const DEFAULT_TRANSACTIONS: Transaction[] = [
     type: 'despesa',
     category: 'Transporte',
     account: 'Cartão de Crédito',
+    bankName: 'Nubank',
     date: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString().split('T')[0],
   },
   {
@@ -122,6 +188,7 @@ export const DEFAULT_TRANSACTIONS: Transaction[] = [
     type: 'reserva',
     category: 'Reserva de Emergência',
     account: 'Reserva de Emergência',
+    bankName: 'Banco Inter',
     date: new Date(Date.now() - 6 * 24 * 3600 * 1000).toISOString().split('T')[0],
     notes: 'Aporte mensal da reserva',
   },
@@ -245,6 +312,8 @@ export const storage = {
     storage.saveDebts([]);
     storage.saveBudgets(DEFAULT_BUDGETS);
     storage.saveCards([]);
+    storage.saveBankConfigs(DEFAULT_BANKS);
+    storage.saveAccounts(DEFAULT_ACCOUNTS);
 
     return { success: true, user: newUser };
   },
@@ -272,6 +341,16 @@ export const storage = {
   // Financial Data Management (Isolated per Active User)
   // --------------------------------------------------------------------------
   getTransactions: (): Transaction[] => {
+    const inferBankName = (t: Partial<Transaction>): string => {
+      if (t.bankName) return t.bankName;
+      const desc = (t.description || '').toLowerCase();
+      const acc = (t.account || '').toLowerCase();
+      if (acc.includes('cartão') || desc.includes('combustível') || desc.includes('supermercado')) return 'Nubank';
+      if (desc.includes('salário') || desc.includes('aluguel') || desc.includes('condomínio')) return 'Itaú';
+      if (desc.includes('investimento') || desc.includes('reserva') || desc.includes('curso') || desc.includes('livro')) return 'Banco Inter';
+      return 'Nubank';
+    };
+
     try {
       const activeUser = storage.getActiveUser();
       const key = getUserStorageKey(STORAGE_KEYS.TRANSACTIONS);
@@ -279,7 +358,13 @@ export const storage = {
       if (!data) {
         if (!activeUser || activeUser.id === 'usr-felipe-default') {
           const legacy = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-          if (legacy) return JSON.parse(legacy);
+          if (legacy) {
+            const list: Transaction[] = JSON.parse(legacy);
+            return list.map((t) => ({
+              ...t,
+              bankName: t.bankName || inferBankName(t),
+            }));
+          }
           return DEFAULT_TRANSACTIONS;
         }
         return [];
@@ -290,6 +375,7 @@ export const storage = {
         type: t.type === 'ren' ? 'receita' : t.type === 'ko' ? 'despesa' : t.type === 'ten' ? 'reserva' : t.type,
         account: sanitizeAccountName(t.account),
         category: sanitizeCategoryName(t.category),
+        bankName: t.bankName || inferBankName(t),
       }));
     } catch {
       return [];
@@ -438,6 +524,125 @@ export const storage = {
     localStorage.setItem(key, JSON.stringify(c));
   },
 
+  getBankConfigs: (): BankConfig[] => {
+    try {
+      const activeUser = storage.getActiveUser();
+      const key = getUserStorageKey(STORAGE_KEYS.BANKS);
+      const data = localStorage.getItem(key);
+      if (!data) {
+        if (!activeUser || activeUser.id === 'usr-felipe-default') {
+          const legacy = localStorage.getItem(STORAGE_KEYS.BANKS);
+          if (legacy) return JSON.parse(legacy);
+          return DEFAULT_BANKS;
+        }
+        return DEFAULT_BANKS;
+      }
+      return JSON.parse(data);
+    } catch {
+      return DEFAULT_BANKS;
+    }
+  },
+
+  saveBankConfigs: (banks: BankConfig[]) => {
+    const key = getUserStorageKey(STORAGE_KEYS.BANKS);
+    localStorage.setItem(key, JSON.stringify(banks));
+  },
+
+  getAccounts: (): FinancialAccount[] => {
+    try {
+      const activeUser = storage.getActiveUser();
+      const key = getUserStorageKey(STORAGE_KEYS.ACCOUNTS);
+      const data = localStorage.getItem(key);
+      if (!data) {
+        if (!activeUser || activeUser.id === 'usr-felipe-default') {
+          const legacy = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+          if (legacy) return JSON.parse(legacy);
+        }
+        // Initialize from profile if available
+        const p = storage.getProfile();
+        const initial: FinancialAccount[] = [
+          {
+            id: 'acc-checking-itau',
+            name: 'Conta Corrente',
+            institutionName: p.bankName || 'Itaú',
+            type: 'checking',
+            balance: typeof p.bankBalance === 'number' ? p.bankBalance : 4200,
+            creditLimit: typeof p.overdraftLimit === 'number' ? p.overdraftLimit : 1000,
+            color: '#EC7000',
+            notes: 'Conta corrente principal para movimentação bancária, transferências e pagamentos fixos.',
+            isDefault: true,
+          },
+          {
+            id: 'acc-card-nubank',
+            name: 'Cartão de Crédito',
+            institutionName: 'Nubank',
+            type: 'credit_card',
+            balance: 0,
+            creditLimit: typeof p.creditCardLimit === 'number' ? p.creditCardLimit : 3500,
+            color: '#820AD1',
+            closingDay: 5,
+            dueDay: 12,
+            notes: `Cartão de crédito para compras do dia a dia, supermercado e transporte. Limite de R$ ${(typeof p.creditCardLimit === 'number' ? p.creditCardLimit : 3500).toLocaleString('pt-BR')}.`,
+            isDefault: true,
+          },
+          {
+            id: 'acc-reserve-inter',
+            name: 'Reserva de Emergência',
+            institutionName: 'Banco Inter',
+            type: 'emergency_fund',
+            balance: typeof p.emergencyFundBalance === 'number' ? p.emergencyFundBalance : 1500,
+            creditLimit: 0,
+            color: '#FF7A00',
+            notes: 'Fundo de liquidez diária com rendimento de 100% do CDI guardado para segurança financeira.',
+            isDefault: true,
+          },
+          {
+            id: 'acc-wallet',
+            name: 'Carteira Física',
+            institutionName: 'Dinheiro em Mãos',
+            type: 'wallet',
+            balance: typeof p.walletBalance === 'number' ? p.walletBalance : 1450,
+            creditLimit: 0,
+            color: '#10B981',
+            notes: 'Dinheiro em espécie na carteira física para trocos e pequenas despesas cotidianas.',
+            isDefault: true,
+          },
+        ];
+        storage.saveAccounts(initial);
+        return initial;
+      }
+      return JSON.parse(data);
+    } catch {
+      return DEFAULT_ACCOUNTS;
+    }
+  },
+
+  saveAccounts: (accounts: FinancialAccount[]) => {
+    const key = getUserStorageKey(STORAGE_KEYS.ACCOUNTS);
+    localStorage.setItem(key, JSON.stringify(accounts));
+
+    // Keep profile metrics seamlessly in sync with the sum of accounts
+    try {
+      const profileKey = getUserStorageKey(STORAGE_KEYS.PROFILE);
+      const existingProfileData = localStorage.getItem(profileKey);
+      if (existingProfileData) {
+        const p: UserProfile = JSON.parse(existingProfileData);
+        const checkingSum = accounts.filter(a => a.type === 'checking').reduce((acc, a) => acc + (a.balance || 0), 0);
+        const walletSum = accounts.filter(a => a.type === 'wallet').reduce((acc, a) => acc + (a.balance || 0), 0);
+        const reserveSum = accounts.filter(a => a.type === 'emergency_fund').reduce((acc, a) => acc + (a.balance || 0), 0);
+        const cardLimitSum = accounts.filter(a => a.type === 'credit_card').reduce((acc, a) => acc + (a.creditLimit || 0), 0);
+        const firstChecking = accounts.find(a => a.type === 'checking');
+        
+        p.bankBalance = checkingSum;
+        p.walletBalance = walletSum;
+        p.emergencyFundBalance = reserveSum;
+        p.creditCardLimit = cardLimitSum;
+        if (firstChecking) p.bankName = firstChecking.institutionName;
+        localStorage.setItem(profileKey, JSON.stringify(p));
+      }
+    } catch {}
+  },
+
   exportBackup: () => {
     const backup = {
       user: storage.getActiveUser(),
@@ -446,6 +651,8 @@ export const storage = {
       profile: storage.getProfile(),
       budgets: storage.getBudgets(),
       cards: storage.getCards(),
+      banks: storage.getBankConfigs(),
+      accounts: storage.getAccounts(),
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -465,6 +672,8 @@ export const storage = {
       if (parsed.profile) storage.saveProfile(parsed.profile);
       if (parsed.budgets) storage.saveBudgets(parsed.budgets);
       if (parsed.cards) storage.saveCards(parsed.cards);
+      if (parsed.banks) storage.saveBankConfigs(parsed.banks);
+      if (parsed.accounts) storage.saveAccounts(parsed.accounts);
       return true;
     } catch (e) {
       console.error('Failed to parse backup', e);
