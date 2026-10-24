@@ -35,15 +35,20 @@ while true; do
         LOCAL_HASH=$(git rev-parse HEAD 2>/dev/null || echo "")
         REMOTE_HASH=$(git rev-parse "$REMOTE/$BRANCH" 2>/dev/null || echo "")
 
+        # Only deploy if remote has new commits ahead of local
         if [ -n "$LOCAL_HASH" ] && [ -n "$REMOTE_HASH" ] && [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
-            log "🔔 Novo commit detectado no GitHub!"
-            log "Local:  $LOCAL_HASH"
-            log "Remoto: $REMOTE_HASH"
-            
-            # Executa script de deploy
-            "$PROJECT_DIR/scripts/gitops-deploy.sh" || {
-                echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ❌ Erro durante o deploy automatizado.${NC}"
-            }
+            if git merge-base --is-ancestor "$LOCAL_HASH" "$REMOTE_HASH" 2>/dev/null; then
+                log "🔔 Novo commit detectado no GitHub!"
+                log "Local:  $LOCAL_HASH"
+                log "Remoto: $REMOTE_HASH"
+                
+                # Executa script de deploy
+                "$PROJECT_DIR/scripts/gitops-deploy.sh" || {
+                    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ❌ Erro durante o deploy automatizado.${NC}"
+                }
+            else
+                log "Alterações locais estão à frente do repositório remoto. Aguardando push..."
+            fi
         fi
     else
         echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️  Falha ao consultar repositório remoto ($REMOTE/$BRANCH). Verifique conexão de rede.${NC}"
