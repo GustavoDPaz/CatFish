@@ -242,6 +242,11 @@ const sanitizeCategoryName = (cat: string): string => {
   return cat;
 };
 
+const sanitizeDescription = (desc: string): string => {
+  if (!desc) return '';
+  return desc.replace(/^Amortização:\s*/i, 'Parcela: ');
+};
+
 export const storage = {
   // --------------------------------------------------------------------------
   // User Authentication & Session Management
@@ -390,6 +395,7 @@ export const storage = {
       const parsed: Transaction[] = JSON.parse(data);
       return parsed.map((t) => ({
         ...t,
+        description: sanitizeDescription(t.description),
         type: t.type === 'ren' ? 'receita' : t.type === 'ko' ? 'despesa' : t.type === 'ten' ? 'reserva' : t.type,
         account: sanitizeAccountName(t.account),
         category: sanitizeCategoryName(t.category),
@@ -781,6 +787,10 @@ export const storage = {
         localStorage.setItem(`${userPrefix}accounts`, JSON.stringify(remote.accounts));
       }
       if (remote.transactions && Array.isArray(remote.transactions)) {
+        remote.transactions = remote.transactions.map((t: Transaction) => ({
+          ...t,
+          description: sanitizeDescription(t.description),
+        }));
         localStorage.setItem(`${userPrefix}transactions`, JSON.stringify(remote.transactions));
       }
       if (remote.debts && Array.isArray(remote.debts)) {

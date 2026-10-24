@@ -85,7 +85,14 @@ export const App: React.FC = () => {
     storage.syncFromRemote(userId).then((remoteData) => {
       if (remoteData && Object.keys(remoteData).length > 0) {
         if (remoteData.accounts) setAccounts(remoteData.accounts);
-        if (remoteData.transactions) setTransactions(remoteData.transactions);
+        if (remoteData.transactions) {
+          setTransactions(
+            remoteData.transactions.map((t: Transaction) => ({
+              ...t,
+              description: (t.description || '').replace(/^Amortização:\s*/i, 'Parcela: '),
+            }))
+          );
+        }
         if (remoteData.debts) setDebts(remoteData.debts);
         if (remoteData.budgets) setBudgets(remoteData.budgets);
         if (remoteData.cards) setCards(remoteData.cards);
@@ -324,22 +331,20 @@ export const App: React.FC = () => {
   };
 
   const handlePayDebt = (debtId: string, amount: number) => {
-    let debtObj: Debt | undefined;
-    let nextInstallmentNum = 1;
-    let totalInstallments = 1;
-    let isDone = false;
+    const debtObj = debts.find((d) => d.id === debtId);
+    if (!debtObj) return;
+
+    const totalInstallments = Math.max(1, debtObj.installmentsCount || 1);
+    const singleInstallmentVal = debtObj.principalAmount / totalInstallments;
+    const currentPaidInst = Math.floor((debtObj.paidAmount || 0) / (singleInstallmentVal || 1));
+    const nextInstallmentNum = Math.min(totalInstallments, currentPaidInst + 1);
+
+    const newPaid = debtObj.paidAmount + amount;
+    const isDone = newPaid >= debtObj.principalAmount;
 
     setDebts((prev) =>
       prev.map((d) => {
         if (d.id === debtId) {
-          debtObj = d;
-          totalInstallments = Math.max(1, d.installmentsCount || 1);
-          const singleInstallmentVal = d.principalAmount / totalInstallments;
-          const currentPaidInst = Math.floor((d.paidAmount || 0) / (singleInstallmentVal || 1));
-          nextInstallmentNum = Math.min(totalInstallments, currentPaidInst + 1);
-
-          const newPaid = d.paidAmount + amount;
-          isDone = newPaid >= d.principalAmount;
           return {
             ...d,
             paidAmount: newPaid,
@@ -350,33 +355,31 @@ export const App: React.FC = () => {
       })
     );
 
-    if (debtObj) {
-      const desc = isDone
-        ? `Quitação: ${debtObj.title}`
-        : totalInstallments > 1
-        ? `Parcela ${nextInstallmentNum}/${totalInstallments}: ${debtObj.title}`
-        : `Pagamento: ${debtObj.title}`;
+    const desc = isDone
+      ? `Quitação: ${debtObj.title}`
+      : totalInstallments > 1
+      ? `Parcela ${nextInstallmentNum}/${totalInstallments}: ${debtObj.title}`
+      : `Pagamento: ${debtObj.title}`;
 
-      handleAddTransaction({
-        description: desc,
-        amount,
-        type: 'despesa',
-        category: debtObj.category === 'cartao_credito' ? 'Cartão de Crédito' : 'Despesa Financeira',
-        account: 'Conta Corrente',
-        date: new Date().toISOString().split('T')[0],
-      });
-    }
+    handleAddTransaction({
+      description: desc,
+      amount,
+      type: 'despesa',
+      category: debtObj.category === 'cartao_credito' ? 'Cartão de Crédito' : 'Despesa Financeira',
+      account: 'Conta Corrente',
+      date: new Date().toISOString().split('T')[0],
+    });
   };
 
   const handlePayOffDebt = (debtId: string) => {
-    let debtObj: Debt | undefined;
-    let remainingAmount = 0;
+    const debtObj = debts.find((d) => d.id === debtId);
+    if (!debtObj) return;
+
+    const remainingAmount = Math.max(0, debtObj.principalAmount - debtObj.paidAmount);
 
     setDebts((prev) =>
       prev.map((d) => {
         if (d.id === debtId) {
-          debtObj = d;
-          remainingAmount = Math.max(0, d.principalAmount - d.paidAmount);
           return {
             ...d,
             paidAmount: d.principalAmount,
@@ -387,7 +390,7 @@ export const App: React.FC = () => {
       })
     );
 
-    if (debtObj && remainingAmount > 0) {
+    if (remainingAmount > 0) {
       handleAddTransaction({
         description: `Quitação: ${debtObj.title}`,
         amount: remainingAmount,
