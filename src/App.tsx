@@ -324,11 +324,22 @@ export const App: React.FC = () => {
   };
 
   const handlePayDebt = (debtId: string, amount: number) => {
+    let debtObj: Debt | undefined;
+    let nextInstallmentNum = 1;
+    let totalInstallments = 1;
+    let isDone = false;
+
     setDebts((prev) =>
       prev.map((d) => {
         if (d.id === debtId) {
+          debtObj = d;
+          totalInstallments = Math.max(1, d.installmentsCount || 1);
+          const singleInstallmentVal = d.principalAmount / totalInstallments;
+          const currentPaidInst = Math.floor((d.paidAmount || 0) / (singleInstallmentVal || 1));
+          nextInstallmentNum = Math.min(totalInstallments, currentPaidInst + 1);
+
           const newPaid = d.paidAmount + amount;
-          const isDone = newPaid >= d.principalAmount;
+          isDone = newPaid >= d.principalAmount;
           return {
             ...d,
             paidAmount: newPaid,
@@ -339,13 +350,18 @@ export const App: React.FC = () => {
       })
     );
 
-    const debtObj = debts.find((d) => d.id === debtId);
     if (debtObj) {
+      const desc = isDone
+        ? `Quitação: ${debtObj.title}`
+        : totalInstallments > 1
+        ? `Parcela ${nextInstallmentNum}/${totalInstallments}: ${debtObj.title}`
+        : `Pagamento: ${debtObj.title}`;
+
       handleAddTransaction({
-        description: `Amortização: ${debtObj.title}`,
+        description: desc,
         amount,
         type: 'despesa',
-        category: 'Despesa Financeira',
+        category: debtObj.category === 'cartao_credito' ? 'Cartão de Crédito' : 'Despesa Financeira',
         account: 'Conta Corrente',
         date: new Date().toISOString().split('T')[0],
       });
@@ -353,9 +369,14 @@ export const App: React.FC = () => {
   };
 
   const handlePayOffDebt = (debtId: string) => {
+    let debtObj: Debt | undefined;
+    let remainingAmount = 0;
+
     setDebts((prev) =>
       prev.map((d) => {
         if (d.id === debtId) {
+          debtObj = d;
+          remainingAmount = Math.max(0, d.principalAmount - d.paidAmount);
           return {
             ...d,
             paidAmount: d.principalAmount,
@@ -365,6 +386,17 @@ export const App: React.FC = () => {
         return d;
       })
     );
+
+    if (debtObj && remainingAmount > 0) {
+      handleAddTransaction({
+        description: `Quitação: ${debtObj.title}`,
+        amount: remainingAmount,
+        type: 'despesa',
+        category: debtObj.category === 'cartao_credito' ? 'Cartão de Crédito' : 'Despesa Financeira',
+        account: 'Conta Corrente',
+        date: new Date().toISOString().split('T')[0],
+      });
+    }
 
     setCards((prev) =>
       prev.map((c) => (c.cardNo === '017' ? { ...c, unlocked: true } : c))

@@ -43,7 +43,7 @@ export const DebtAlertModal: React.FC<DebtAlertModalProps> = ({ onClose }) => {
                 Endividamento Acima do Teto Seguro
               </h4>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45, margin: 0 }}>
-                O total de compras parceladas e pendências ativas atingiu um nível elevado. Recomendamos priorizar a amortização antes de realizar novas despesas parceladas.
+                O total de compras parceladas e pendências ativas atingiu um nível elevado. Recomendamos priorizar a quitação de parcelas antes de realizar novas despesas.
               </p>
             </div>
           </div>
@@ -64,8 +64,8 @@ export const DebtAlertModal: React.FC<DebtAlertModalProps> = ({ onClose }) => {
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
               <CheckSquare size={16} color="var(--color-danger)" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
               <div>
-                <strong style={{ display: 'block' }}>Priorizar Amortização:</strong>
-                <span style={{ color: 'var(--text-muted)' }}>Destine receitas adicionais para abater as dívidas de juros mais altos.</span>
+                <strong style={{ display: 'block' }}>Priorizar Pagamento de Parcelas:</strong>
+                <span style={{ color: 'var(--text-muted)' }}>Destine receitas adicionais para quitar as parcelas e pendências com juros mais altos.</span>
               </div>
             </div>
 

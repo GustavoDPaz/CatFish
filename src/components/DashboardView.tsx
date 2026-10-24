@@ -308,7 +308,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span className="cf-callout-title">{isRiskMode ? 'Você ultrapassou o teto seguro' : 'Parcelas sob monitoramento'}</span>
                 </div>
                 <p className="cf-callout-desc">
-                  {isRiskMode ? 'Priorize a amortização para reduzir os juros acumulados.' : 'Mantenha os pagamentos em dia para evitar juros.'}
+                  {isRiskMode ? 'Priorize o pagamento de parcelas para reduzir os juros acumulados.' : 'Mantenha os pagamentos em dia para evitar juros.'}
                 </p>
               </div>
             ) : (

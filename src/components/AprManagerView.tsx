@@ -134,7 +134,7 @@ export const AprManagerView: React.FC<AprManagerViewProps> = ({
 
         <h1 className="cf-greeting-title">Dívidas e parcelamentos</h1>
         <p className="cf-greeting-subtitle">
-          Acompanhe suas obrigações financeiras, simule o impacto de compras parceladas e amortize parcelas ativas.
+          Acompanhe suas obrigações financeiras, simule o impacto de compras parceladas e gerencie pagamentos de parcelas.
         </p>
 
         {/* 4-Column Metric Strip */}
@@ -156,7 +156,7 @@ export const AprManagerView: React.FC<AprManagerViewProps> = ({
           </div>
 
           <div className="cf-hero-metric-col">
-            <span className="cf-metric-label">Total amortizado</span>
+            <span className="cf-metric-label">Total pago</span>
             <span className="cf-metric-value cf-val-green mono-number">
               {formatCurrency(totalPaid)}
             </span>
